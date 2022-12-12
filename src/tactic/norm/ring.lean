@@ -78,7 +78,7 @@ do
   c ← monad_ring.get_cache,
   let red := c.red,
   es ← monad_ref.read_ref c.atoms,
-  es.iterate failure (λ n e' t, t <|> (monad_tactic.lift (is_def_eq e e' red) $> n)) <|>
+  es.iterate failure (λ n e' t, t <|> (monad_tactic.lift (is_def_eq e e' red) $> n.val)) <|>
     (es.size <$ monad_ref.write_ref c.atoms (es.push_back e))
 
 /-- Run a `ring_m` tactic in the tactic monad. This version of `ring_m.run` uses an external

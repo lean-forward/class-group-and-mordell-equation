@@ -1,10 +1,12 @@
+import data.fintype.parity
+import data.nat.prime_norm_num
 import data.zmod.basic
+import linear_algebra.free_module.finite.basic
+import number_theory.assorted_lemmas
 import ring_theory.adjoin_root
 import ring_theory.class_group
 import ring_theory.dedekind_domain.integral_closure
 import ring_theory.norm
-import linear_algebra.free_module.finite.basic
-import number_theory.assorted_lemmas
 import tactic.norm_cast
 
 /-!
@@ -44,7 +46,7 @@ use the tactic `quad_ring.calc_tac`.
 
  * `quad_ring.is_integral_closure_23`,
    `quad_ring.is_integral_closure_1`: together specify the ring of integers of
-   `ℚ(√ d)` (where `d` is squarefree, of course)
+   `ℚ(√d)` (where `d` is squarefree, of course)
 
 -/
 
@@ -73,6 +75,7 @@ lemma irreducible.not_is_square {R : Type*} [semiring R] {p : R} (hp : irreducib
   ¬ is_square p
 | ⟨a, ha⟩ := by cases (hp.is_unit_or_is_unit ha) with hua hua; simpa [ha] using hp.not_unit
 
+-- TODO version of this for arbitrary fraction rings? needs a good way of getting a numerator
 lemma rat.is_square_int_cast_iff (n : ℤ) : is_square (n : ℚ) ↔ is_square n :=
 begin
   split; rintros ⟨a, ha⟩,
@@ -583,7 +586,7 @@ section sqrt_d
 
 section ring
 
-/-! ## The ring `R[√ d]` -/
+/-! ## The ring `R[√d]` -/
 
 variables {R : Type*} [comm_ring R] {d s : R}
 
@@ -606,7 +609,7 @@ by { norm_cast, ext; simp only [mul_b1, conj_b1, mul_b2, conj_b2, coe_b1, coe_b2
   x * x.conj = x.1^2 + s * x.1 * x.2 - d * x.2^2 :=
 by rw [mul_comm, conj_mul]
 
-/-! ### Norm on `R[√ d]` -/
+/-! ### Norm on `R[√d]` -/
 
 lemma left_mul_matrix_apply {a b : R} (x : quad_ring R a b) :
   algebra.left_mul_matrix (quad_ring.basis R a b) x = ![![x.1, x.2 * b], ![x.2, x.1 + x.2 * a]] :=
@@ -705,10 +708,10 @@ end
 
 end ring
 
-/-! ## The ring `ℤ[√ d]` -/
+/-! ## The ring `ℤ[√d]` -/
 
-notation `ℤ[√ ` d `]` := quad_ring ℤ 0 d
-notation `ℚ(√ ` d `)` := quad_ring ℚ 0 d
+notation `ℤ[√` d `]` := quad_ring ℤ 0 d
+notation `ℚ(√` d `)` := quad_ring ℚ 0 d
 
 section int
 
@@ -719,12 +722,12 @@ open algebra
 lemma is_domain_of_not_square {R : Type*} [comm_ring R] [is_domain R]
   [unique_factorization_monoid R] {d s : R} (hd : ¬ is_square (4 * d + s ^ 2)) :
   is_domain $ quad_ring R s d :=
+@@no_zero_divisors.to_is_domain _ _ _
 { eq_zero_or_eq_zero_of_mul_eq_zero := begin
     rintros a b h,
     apply_fun (norm R) at h,
     simpa only [norm_zero, eq_zero_iff_norm hd, map_mul, mul_eq_zero] using h,
-  end,
-  ..quad_ring.nontrivial _ _ _ }
+  end }
 
 lemma is_square_four : is_square (4 : ℤ) :=
 begin
@@ -754,7 +757,7 @@ begin
   { exact h.mul hi, }
 end
 
-instance [fact $ ¬ is_square d] : is_domain ℤ[√ d] :=
+instance [fact $ ¬ is_square d] : is_domain ℤ[√d] :=
 begin
   apply is_domain_of_not_square,
   simp only [zero_pow', ne.def, bit0_eq_zero, nat.one_ne_zero, not_false_iff, add_zero],
@@ -780,7 +783,7 @@ end
 
 end int
 
-/-! ## The field `K(√ d)` -/
+/-! ## The field `K(√d)` -/
 
 section field
 
@@ -839,7 +842,7 @@ def field_of_not_square (hd : ¬ is_square d) :
   inv_zero := inv_zero,
   .. quad_ring.comm_ring _ _ _ }
 
-instance {d' : ℚ} [fact $ ¬ is_square d'] : field ℚ(√ d') :=
+instance {d' : ℚ} [fact $ ¬ is_square d'] : field ℚ(√d') :=
 field_of_not_square (fact.out _)
 
 -- TODO clean this up
@@ -859,7 +862,7 @@ example {d' : ℚ} [fact $ ¬ is_square d'] : quad_ring.algebra ℚ 0 d' = algeb
 
 end field
 
-/-! ## The field `ℚ(√ d)` as field of fractions of `ℤ[√ d]` -/
+/-! ## The field `ℚ(√d)` as field of fractions of `ℤ[√d]` -/
 
 section rat
 -- We use different variables `d : ℤ` and `d' : ℚ`,
@@ -873,20 +876,20 @@ lemma coe_d : (d : ℚ) = d' := hdd'.out
 
 variables {d d'}
 
-/-- We map from `ℤ[√ d]` to `ℚ(√ d)` by applying the coercion `ℤ → ℚ` componentwise.
+/-- We map from `ℤ[√d]` to `ℚ(√d)` by applying the coercion `ℤ → ℚ` componentwise.
 
-This is not true for arbitrary `R[√ d] → K(√ d)` since there might not be such a coercion.
+This is not true for arbitrary `R[√d] → K(√d)` since there might not be such a coercion.
 -/
 @[simp] lemma algebra_map_mk (x y : ℤ) :
-  algebra_map ℤ[√ d] ℚ(√ d') ⟨x, y⟩ = ⟨x, y⟩ :=
+  algebra_map ℤ[√d] ℚ(√d') ⟨x, y⟩ = ⟨x, y⟩ :=
 rfl
 
 variables (d d')
 
 lemma fraction_ring_surj_aux (a b : ℚ) :
   (⟨a, b⟩ : quad_ring ℚ 0 d') *
-      algebra_map ℤ[√ d] ℚ(√ d') (↑(a.denom) * ↑(b.denom)) =
-    algebra_map ℤ[√ d] ℚ(√ d') ⟨a.num * ↑(b.denom), b.num * ↑(a.denom)⟩ :=
+      algebra_map ℤ[√d] ℚ(√d') (↑(a.denom) * ↑(b.denom)) =
+    algebra_map ℤ[√d] ℚ(√d') ⟨a.num * ↑(b.denom), b.num * ↑(a.denom)⟩ :=
 begin
   ext : 1;
     simp only [algebra_map_mk, mul_b1, mul_b2, set_like.coe_mk, map_mul, coe_coe,
@@ -896,8 +899,8 @@ begin
   { rw [mul_comm ↑↑a.denom, ← mul_assoc, int.cast_coe_nat, @rat.mul_denom_eq_num b], norm_cast }
 end
 
-/-- If `d` is not a square, then `ℚ(√ d)` is the field of fractions of `ℤ[√ d]`. -/
-instance [not_sq : fact $ ¬ is_square d] : is_fraction_ring ℤ[√ d] ℚ(√ d') :=
+/-- If `d` is not a square, then `ℚ(√d)` is the field of fractions of `ℤ[√d]`. -/
+instance [not_sq : fact $ ¬ is_square d] : is_fraction_ring ℤ[√d] ℚ(√d') :=
 { map_units := begin
     haveI : fact (¬ is_square d'),
     { rw [← hdd'.out, eq_int_cast],
@@ -930,13 +933,13 @@ instance [not_sq : fact $ ¬ is_square d] : is_fraction_ring ℤ[√ d] ℚ(√ 
 }
 omit hdd'
 
-/-! ### Ring of integers of `ℚ(√ d)`, `d ≠ 1` mod 4.  -/
+/-! ### Ring of integers of `ℚ(√d)`, `d ≠ 1` mod 4.  -/
 
 open polynomial
 
 variables (d) {d'}
 
-/-- The minimal polynomial for `a + b √ d` when `a b ∈ R`. -/
+/-- The minimal polynomial for `a + b √d` when `a b ∈ R`. -/
 noncomputable def minpoly_a_add_b_sqrt_d {R : Type*} [comm_ring R] (dR a b : R) : polynomial R :=
 X^2 - C (2 * a) * X + C (a^2 - dR * b^2)
 
@@ -1016,7 +1019,7 @@ protected lemma is_integral_mk' (a b : ℤ) : is_integral ℤ (⟨a, b⟩ : quad
  minpoly_a_add_b_sqrt_d.monic _ _ _,
  minpoly_a_add_b_sqrt_d.aeval_mk_eq_zero d a b⟩
 
-protected lemma is_integral : algebra.is_integral ℤ (ℤ[√ d]) :=
+protected lemma is_integral : algebra.is_integral ℤ (ℤ[√d]) :=
 λ ⟨a, b⟩, quad_ring.is_integral_mk' _ a b
 
 section
@@ -1029,7 +1032,7 @@ begin
   { exact algebra_map_injective 0 d 0 d' (ring_hom.injective_int _) }
 end
 
-lemma minpoly_eq [fact (¬ is_square d')] (x : ℚ(√ d')) :
+lemma minpoly_eq [fact (¬ is_square d')] (x : ℚ(√d')) :
   (∃ y : ℚ, x = y) ∨ minpoly ℚ x = minpoly_a_add_b_sqrt_d d' x.b1 x.b2 :=
 begin
   rw or_iff_not_imp_left,
@@ -1053,14 +1056,14 @@ begin
   have q_coeff_one : q.coeff 1 ≠ 0,
   { rw [← h_1, q_monic.coeff_nat_degree],
     exact one_ne_zero },
-  refine mul_left_cancel₀ (show algebra_map ℚ ℚ(√ d') (q.coeff 1) ≠ 0, from _) _,
-  { exact (map_ne_zero_iff _ ((algebra_map ℚ ℚ(√ d')).injective)).mpr q_coeff_one },
+  refine mul_left_cancel₀ (show algebra_map ℚ ℚ(√d') (q.coeff 1) ≠ 0, from _) _,
+  { exact (map_ne_zero_iff _ ((algebra_map ℚ ℚ(√d')).injective)).mpr q_coeff_one },
   rw [← eq_rat_cast (algebra_map ℚ _), ← _root_.map_mul, mul_div_cancel' _ q_coeff_one, map_neg,
       add_eq_zero_iff_eq_neg.mp aeval_q],
 end
 
 
-lemma exists_c1_c0 [fact (¬ is_square d')] (x : ℚ(√ d')) (hx : is_integral ℤ x) :
+lemma exists_c1_c0 [fact (¬ is_square d')] (x : ℚ(√d')) (hx : is_integral ℤ x) :
   (∃ y : ℚ, x = y) ∨ (∃ c1 c0 : ℤ, -2 * x.b1 = c1 ∧ x.b1^2 - d * x.b2^2 = c0) :=
 begin
   cases minpoly_eq d x with triv minpoly_eq,
@@ -1120,7 +1123,7 @@ begin
   { exact or.inr ((zmod.int_coe_eq_int_coe_iff' d 3 4).mpr hr) }
 end
 
-/-- The number theoretic argument showing ℤ[√ d] is the ring of integers of ℚ(√ d), if d = 2 or 3 mod 4:
+/-- The number theoretic argument showing ℤ[√d] is the ring of integers of ℚ(√d), if d = 2 or 3 mod 4:
 the coefficients of the minimal polynomial of an integral number must be integers,
 which implies the coordinates are integers.
 -/
@@ -1173,10 +1176,10 @@ section
 
 include hdd'
 
-/-- ℤ[√ d] is the ring of integers of ℚ(√ d), if d = 2 or 3 mod 4. -/
+/-- ℤ[√d] is the ring of integers of ℚ(√d), if d = 2 or 3 mod 4. -/
 lemma is_integral_closure_23 (hr : d % 4 = 2 ∨ d % 4 = 3)
   (hd2 : squarefree d) :
-  is_integral_closure ℤ[√ d] ℤ ℚ(√ d') :=
+  is_integral_closure ℤ[√d] ℤ ℚ(√d') :=
 { algebra_map_injective := algebra_map_injective 0 d 0 d' (ring_hom.injective_int _),
   is_integral_iff := begin
     haveI : fact (¬ is_square d'),
@@ -1190,7 +1193,7 @@ lemma is_integral_closure_23 (hr : d % 4 = 2 ∨ d % 4 = 3)
       -- Either x is trivial, or the minimal polynomial of x is `x^2 - 2 a x + (a^2 - d b^2).
       rcases exists_c1_c0 d x hx with ⟨y, rfl⟩ | ⟨c1, c0, hc1, hc0⟩,
       { rw [← eq_rat_cast (algebra_map ℚ _),
-            is_integral_algebra_map_iff ((algebra_map ℚ ℚ(√ d')).injective)] at hx,
+            is_integral_algebra_map_iff ((algebra_map ℚ ℚ(√d')).injective)] at hx,
         obtain ⟨y, rfl⟩ := unique_factorization_monoid.integer_of_integral hx,
         refine ⟨y, algebra_map_coe _ _ _ _ _⟩,
         { apply_instance } },
@@ -1209,32 +1212,32 @@ end
 -- TODO probably remove these special cases
 instance : is_integral_closure (quad_ring ℤ 0 (-5)) ℤ (quad_ring ℚ 0 (-5)) :=
 is_integral_closure_23 (-5) (or.inr rfl)
-  (squarefree_of_dvd_of_squarefree ((neg_dvd _ _).mpr (dvd_refl 5)) $ prime.squarefree $
+  (squarefree.squarefree_of_dvd ((neg_dvd _ _).mpr (dvd_refl 5)) $ prime.squarefree $
     int.prime_iff_nat_abs_prime.mpr $ by norm_num)
 
 instance quad_ring.is_integral_closure_3 {d : ℤ} [fact $ d % 4 = 3]
   [fact $ squarefree d] {d' : ℚ} [hdd' : fact (algebra_map ℤ ℚ d = d')] :
-  is_integral_closure ℤ[√ d] ℤ ℚ(√ d') :=
+  is_integral_closure ℤ[√d] ℤ ℚ(√d') :=
 is_integral_closure_23 d (or.inr $ fact.out _) (fact.out _)
 
 instance quad_ring.is_integral_closure_2 {d : ℤ} [fact $ d % 4 = 2]
   [fact $ squarefree d] {d' : ℚ} [hdd' : fact (algebra_map ℤ ℚ d = d')] :
-  is_integral_closure ℤ[√ d] ℤ ℚ(√ d') :=
+  is_integral_closure ℤ[√d] ℤ ℚ(√d') :=
 is_integral_closure_23 d (or.inl $ fact.out _) (fact.out _)
 
 instance quad_ring.is_integral_closure_2_or_three {d : ℤ}
   [hd : fact $ d % 4 = 2 ∨ d % 4 = 3] [fact $ squarefree d] {d' : ℚ}
   [hdd' : fact (algebra_map ℤ ℚ d = d')] :
-  is_integral_closure ℤ[√ d] ℤ ℚ(√ d') :=
+  is_integral_closure ℤ[√d] ℤ ℚ(√d') :=
 is_integral_closure_23 d (fact.out _) (fact.out _)
 
 namespace one_mod_four
 
-/-! ### Ring of integers of `ℚ(√ d)`, `d = 1` mod 4.
+/-! ### Ring of integers of `ℚ(√d)`, `d = 1` mod 4.
 
 Here we'll use notation `α = 1/2 (1 + √d)` and `m = (d - 1) / 4`.
 
-If `d = 1` mod 4 then `ℤ[√ d]` is not integrally closed, so we have to adjoin a root
+If `d = 1` mod 4 then `ℤ[√d]` is not integrally closed, so we have to adjoin a root
 `α` of the polynomial `X^2 - X - (d - 1)/4` instead, giving the ring `quad_ring ℤ 1 m`.
 -/
 
@@ -1344,19 +1347,19 @@ by simp only [pow_two, smul_mul_smul]
 variables [hdm : fact $ d' = 4 * m + 1]
 include hdm
 
-instance : algebra (quad_ring ℤ 1 m) ℚ(√ d') :=
-ring_hom.to_algebra $ quad_ring.lift (algebra_map ℤ ℚ(√ d')) 1 m
-  -- Since d' might be a square, multiply by `1/2 : ℚ` instead of dividing by `2 : ℚ(√ d')`.
+instance : algebra (quad_ring ℤ 1 m) ℚ(√d') :=
+ring_hom.to_algebra $ quad_ring.lift (algebra_map ℤ ℚ(√d')) 1 m
+  -- Since d' might be a square, multiply by `1/2 : ℚ` instead of dividing by `2 : ℚ(√d')`.
   ((2⁻¹ : ℚ) • (1 + root ℚ 0 d')) $
 begin
-  refine smul_right_injective ℚ(√ d') (show (4 : ℚ) ≠ 0, by norm_num) _,
+  refine smul_right_injective ℚ(√d') (show (4 : ℚ) ≠ 0, by norm_num) _,
   simp only [smul_zero, smul_sub, smul_add, smul_sq, inv_pow, map_one, one_mul, add_sq, root_sq,
     hdm.out],
   calc_tac
 end
 
 @[simp] lemma algebra_map_b1 (x : quad_ring ℤ 1 m) :
-  (algebra_map (quad_ring ℤ 1 m) ℚ(√ d') x).b1 = x.b1 + 1/2 * x.b2 :=
+  (algebra_map (quad_ring ℤ 1 m) ℚ(√d') x).b1 = x.b1 + 1/2 * x.b2 :=
 begin
   cases x,
   rw [ring_hom.algebra_map_to_algebra, lift_mk],
@@ -1368,7 +1371,7 @@ begin
 end
 
 @[simp] lemma algebra_map_b2 (x : quad_ring ℤ 1 m) :
-  (algebra_map (quad_ring ℤ 1 m) ℚ(√ d') x).b2 = 1/2 * x.b2 :=
+  (algebra_map (quad_ring ℤ 1 m) ℚ(√d') x).b2 = 1/2 * x.b2 :=
 begin
   cases x,
   rw [ring_hom.algebra_map_to_algebra, lift_mk],
@@ -1380,17 +1383,17 @@ begin
 end
 
 @[simp] lemma algebra_map_mk (a b : ℤ) :
-  algebra_map (quad_ring ℤ 1 m) ℚ(√ d') ⟨a, b⟩ = ⟨a + 1/2 * b, 1/2 * b⟩ :=
+  algebra_map (quad_ring ℤ 1 m) ℚ(√d') ⟨a, b⟩ = ⟨a + 1/2 * b, 1/2 * b⟩ :=
 by simp only [ext_iff, algebra_map_b1, algebra_map_b2, eq_self_iff_true, and_true]
 
 @[simp] lemma algebra_map_coe (a : ℤ) :
-  algebra_map (quad_ring ℤ 1 m) ℚ(√ d') a = a :=
+  algebra_map (quad_ring ℤ 1 m) ℚ(√d') a = a :=
 begin
   rw [ring_hom.algebra_map_to_algebra, lift_coe, eq_int_cast]
 end
 
 lemma algebra_map_injective :
-  function.injective (algebra_map (quad_ring ℤ 1 m) ℚ(√ d')) :=
+  function.injective (algebra_map (quad_ring ℤ 1 m) ℚ(√d')) :=
 begin
   rintros ⟨x1, x2⟩ ⟨y1, y2⟩ h,
   rw [algebra_map_mk, algebra_map_mk, ext_iff, mul_right_inj', int.cast_inj] at h,
@@ -1409,7 +1412,7 @@ begin
   { exact algebra_map_injective m }
 end
 
-lemma exists_mem_z_alpha_iff (y : ℚ(√ d')) :
+lemma exists_mem_z_alpha_iff (y : ℚ(√d')) :
   (∃ (x : quad_ring ℤ 1 m), algebra_map _ _ x = y) ↔
    ∃ a b : ℤ, y.b1 = a + 1/2 * b ∧ y.b2 = 1/2 * b :=
 begin
@@ -1508,7 +1511,7 @@ lemma sub_even_of_sq_eq_sq_mod_four (a b : ℤ) (h : (a : zmod 4)^2 = b^2) :
   even (a - b) :=
 by rw [int.even_sub, even_iff_sq_mod_four, even_iff_sq_mod_four, h]
 
-/-- The number theoretic argument showing ℤ[α] is the ring of integers of ℚ(√ d), if d = 1:
+/-- The number theoretic argument showing ℤ[α] is the ring of integers of ℚ(√d), if d = 1:
 the coefficients of the minimal polynomial of an integral number must be integers,
 which implies the coordinates in ℤ[α] are integers.
 -/
@@ -1553,9 +1556,9 @@ end
 
 include hdm
 
-/-- ℤ[1/2 + 1/2√ d] is the ring of integers of ℚ(√ d), if d = 1 mod 4. -/
+/-- ℤ[1/2 + 1/2√d] is the ring of integers of ℚ(√d), if d = 1 mod 4. -/
 lemma is_integral_closure_1 (hd' : ¬ is_square d') (hd2 : squarefree (4*m + 1)) :
-  is_integral_closure (quad_ring ℤ 1 m) ℤ ℚ(√ d') :=
+  is_integral_closure (quad_ring ℤ 1 m) ℤ ℚ(√d') :=
 { algebra_map_injective := algebra_map_injective m,
   is_integral_iff := begin
     haveI : fact (¬ is_square d') := ⟨hd'⟩,
@@ -1567,7 +1570,7 @@ lemma is_integral_closure_1 (hd' : ¬ is_square d') (hd2 : squarefree (4*m + 1))
       -- which are integral.
       rcases exists_c1_c0 (4 * m + 1) x hx with ⟨y, rfl⟩ | ⟨c1, c0, hc1, hc0⟩,
       { rw [← eq_rat_cast (algebra_map ℚ _),
-            is_integral_algebra_map_iff ((algebra_map ℚ ℚ(√ d')).injective)] at hx,
+            is_integral_algebra_map_iff ((algebra_map ℚ ℚ(√d')).injective)] at hx,
         obtain ⟨y, rfl⟩ := unique_factorization_monoid.integer_of_integral hx,
         refine ⟨y, algebra_map_coe _ _⟩,
         { apply_instance } },
@@ -1627,17 +1630,17 @@ local attribute [instance] fact_not_square'_of_eq_two_mod_four
 local attribute [instance] fact_not_square'_of_eq_two_or_three_mod_four
 
 instance quad_ring.mod_three_is_dedekind_domain {d : ℤ} [fact $ d % 4 = 3] [fact $ squarefree d] :
-  is_dedekind_domain ℤ[√ d] :=
-is_integral_closure.is_dedekind_domain ℤ ℚ (quad_ring ℚ 0 d) ℤ[√ d]
+  is_dedekind_domain ℤ[√d] :=
+is_integral_closure.is_dedekind_domain ℤ ℚ (quad_ring ℚ 0 d) ℤ[√d]
 
 instance quad_ring.mod_two_is_dedekind_domain {d : ℤ} [fact $ d % 4 = 2] [fact $ squarefree d] :
-  is_dedekind_domain ℤ[√ d] :=
-is_integral_closure.is_dedekind_domain ℤ ℚ (quad_ring ℚ 0 d) ℤ[√ d]
+  is_dedekind_domain ℤ[√d] :=
+is_integral_closure.is_dedekind_domain ℤ ℚ (quad_ring ℚ 0 d) ℤ[√d]
 
-instance quad_ring.mod_two_or_thee_is_dedekind_domain {d : ℤ} [fact $ d % 4 = 2 ∨ d % 4 = 3]
+instance quad_ring.mod_two_or_three_is_dedekind_domain {d : ℤ} [fact $ d % 4 = 2 ∨ d % 4 = 3]
   [fact $ squarefree d] :
-  is_dedekind_domain ℤ[√ d] :=
-is_integral_closure.is_dedekind_domain ℤ ℚ (quad_ring ℚ 0 d) ℤ[√ d]
+  is_dedekind_domain ℤ[√d] :=
+is_integral_closure.is_dedekind_domain ℤ ℚ (quad_ring ℚ 0 d) ℤ[√d]
 
 
 @[simp]
@@ -1649,7 +1652,7 @@ begin
 end
 
 instance algebra_sub_one [hdmod : fact $ d % 4 = 1] [hdd' : fact (algebra_map ℤ ℚ d = d')] :
-  algebra (quad_ring ℤ 1 ((d - 1) / 4)) ℚ(√ d') :=
+  algebra (quad_ring ℤ 1 ((d - 1) / 4)) ℚ(√d') :=
 begin
   haveI : fact (d' = 4 * (↑((d - 1) / 4) : ℚ) + 1) := fact.mk _,
   apply_instance,
@@ -1694,7 +1697,7 @@ begin
   exact int.eq_one_of_mul_eq_one_right (quad_ring.norm_nonneg hd _) h,
 end
 
-lemma units_quad {d : ℤ} (hd : d ≤ -2) (u : ℤ[√ d]ˣ) : u = 1 ∨ u = -1 :=
+lemma units_quad {d : ℤ} (hd : d ≤ -2) (u : ℤ[√d]ˣ) : u = 1 ∨ u = -1 :=
 begin
   rcases u with ⟨⟨u_val_b1, u_val_b2⟩, ⟨u_inv_b1, u_inv_b2⟩, u_val_inv, u_inv_val⟩,
   have h := norm_eq_one_of_mul_eq_one (by linarith) u_val_inv,
@@ -1729,7 +1732,7 @@ begin
     simp [h, units.ext_iff], },
 end
 
-lemma units_quad_cubes {d : ℤ} (hd : d ≤ -1) (u : ℤ[√ d]ˣ) : ∃ v, u = v ^ 3 :=
+lemma units_quad_cubes {d : ℤ} (hd : d ≤ -1) (u : ℤ[√d]ˣ) : ∃ v, u = v ^ 3 :=
 begin
   rw le_iff_lt_or_eq at hd,
   rcases hd with hd | rfl,
@@ -1755,16 +1758,16 @@ lemma aux (m d : zmod 9) (hd : d ∈ ({0,2,3,4,5,6,8} : set (zmod 9))) : m ^ 2 *
 lemma aux'' (m n : zmod 9) : n * (m ^ 2 * 3 + n ^ 2 * -5) ≠ 1 := by dec_trivial!
 lemma aux' (m d : zmod 3) (hd : d ∈ ({0,1} : set (zmod 3))) : -d - (m ^ 2 * 3) ≠ 1 := by dec_trivial!
 
-lemma minpoly_int_eq {d : ℤ} [fact (¬ is_square d)] (x : ℤ[√ d]) :
+lemma minpoly_int_eq {d : ℤ} [fact (¬ is_square d)] (x : ℤ[√d]) :
   (∃ y : ℤ, x = y) ∨ minpoly ℤ x = minpoly_a_add_b_sqrt_d d x.b1 x.b2 :=
 begin
   haveI : fact (¬ is_square (d : ℚ)) := ⟨(rat.is_square_int_cast_iff _).not.mpr (fact.out _)⟩,
   haveI : fact (algebra_map ℤ ℚ d = d) := ⟨eq_int_cast _ _⟩,
   have inj_int : function.injective (algebra_map ℤ ℚ) := int.cast_injective,
-  have inj_rat : function.injective (algebra_map ℚ ℚ(√ d)) := quad_ring.coe_injective ℚ 0 d,
-  have inj_quad : function.injective (algebra_map ℤ[√ d] ℚ(√ d)) :=
+  have inj_rat : function.injective (algebra_map ℚ ℚ(√d)) := quad_ring.coe_injective ℚ 0 d,
+  have inj_quad : function.injective (algebra_map ℤ[√d] ℚ(√d)) :=
     quad_ring.algebra_map_injective _ _ _ _ inj_int,
-  rcases minpoly_eq d (algebra_map _ (ℚ(√ d)) x) with ⟨y, h⟩ | h,
+  rcases minpoly_eq d (algebra_map _ (ℚ(√d)) x) with ⟨y, h⟩ | h,
   { have : is_integral ℤ y,
     { rw [← is_integral_algebra_map_iff inj_rat, algebra_map_apply, ← h,
           is_integral_algebra_map_iff inj_quad],
@@ -1773,7 +1776,7 @@ begin
       { apply_instance } },
     obtain ⟨y', rfl⟩ := unique_factorization_monoid.integer_of_integral this,
     rw [← algebra_map_apply, ← is_scalar_tower.algebra_map_apply,
-        is_scalar_tower.algebra_map_apply ℤ ℤ[√ d]] at h,
+        is_scalar_tower.algebra_map_apply ℤ ℤ[√d]] at h,
     exact or.inl ⟨y', inj_quad h⟩ },
   refine or.inr (polynomial.map_injective (algebra_map ℤ ℚ) inj_int _),
   rw [← minpoly.gcd_domain_eq_field_fractions ℚ (quad_ring ℚ 0 d) (quad_ring.is_integral d x),

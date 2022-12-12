@@ -17,70 +17,50 @@ structure times_table (ι R S : Type*) [fintype ι]
   [semiring R] [add_comm_monoid S] [module R S] [has_mul S] :=
 (basis : basis ι R S)
 (table : ι → ι → ι → R)
-(unfold_mul : ∀ x y k, basis.repr (x * y) k = ∑ i j : ι, basis.repr x i * basis.repr y j * table i j k)
+(unfold_mul' : ∀ x y k, basis.repr (x * y) k = ∑ i j : ι, basis.repr x i * basis.repr y j * table i j k)
 -- (mul_def : ∀ i j k, basis.repr (basis i * basis j) k = table i j k)
 
 mk_simp_attribute times_table_simps "The simpset `times_table_simps` is used by the tactic
 `times_table` to reduce an expression of the form `(t : times_table).basis.repr x k` to a numeral."
 
+section add_monoid
+
+variables {ι R S : Type*} [fintype ι] [semiring R] [add_comm_monoid S] [module R S] [has_mul S]
+
+noncomputable def times_table.coord (t : times_table ι R S) (x : S) (i : ι) : R :=
+t.basis.repr x i
+
+@[simp] lemma times_table.basis_repr_eq (t : times_table ι R S) (x : S) (i : ι) :
+  t.basis.repr x i = t.coord x i := rfl
+
+@[simp] lemma times_table.coord_basis [decidable_eq ι] (t : times_table ι R S) (i : ι) :
+  t.coord (t.basis i) = pi.single i 1 :=
+by ext; rw [← t.basis_repr_eq, t.basis.repr_self i, finsupp.single_eq_pi_single]
+
+lemma times_table.unfold_mul (t : times_table ι R S) :
+  ∀ x y k, t.coord (x * y) k = ∑ i j : ι, t.coord x i * t.coord y j * t.table i j k :=
+t.unfold_mul'
+
+lemma times_table.ext (t : times_table ι R S) {x y : S} (h : ∀ i, t.coord x i = t.coord y i) :
+  x = y :=
+t.basis.ext_elem h
+
+end add_monoid
+
 section semiring
 variables {ι R S : Type*} [fintype ι] [comm_semiring R] [non_unital_non_assoc_semiring S] [module R S]
 
-/-
-noncomputable def times_table.reindex {ι' : Type*} [fintype ι'] (t : times_table ι R S) (e : ι ≃ ι') :
-  times_table ι' R S :=
-{ basis := t.basis.reindex e,
-  table := λ i j k, t.table (e.symm i) (e.symm j) (e.symm k),
-  unfold_mul := λ x y k, sorry }
--/
-
 @[simp] lemma times_table.mul_def (t : times_table ι R S) (i j k : ι)  :
-  t.basis.repr (t.basis i * t.basis j) k = t.table i j k :=
-by { simp only [t.unfold_mul, basis.repr_self],
-     rw [fintype.sum_eq_single i, fintype.sum_eq_single j, finsupp.single_eq_same,
-         finsupp.single_eq_same, one_mul, one_mul];
-       { intros x hx, simp [finsupp.single_eq_of_ne hx.symm] } }
+  t.coord (t.basis i * t.basis j) k = t.table i j k :=
+begin
+  letI := classical.dec_eq ι,
+  simp only [t.unfold_mul, times_table.coord_basis],
+  rw [fintype.sum_eq_single i, fintype.sum_eq_single j, pi.single_eq_same,
+      pi.single_eq_same, one_mul, one_mul];
+    { intros x hx, simp [pi.single_eq_of_ne hx] }
+end
 
 variables [smul_comm_class R S S] [is_scalar_tower R S S]
-
--- TODO: should be much easier now that `unfold_mul` is the primitive
-lemma times_table.coeff_mul_coeff (t : times_table ι R S) (x y : ι → R) :
-  t.basis.equiv_fun.symm x * t.basis.equiv_fun.symm y =
-    t.basis.equiv_fun.symm (λ k, ∑ i j : ι, x i * y j * t.table i j k) :=
-begin
-  calc t.basis.equiv_fun.symm x * t.basis.equiv_fun.symm y
-      = ∑ (i j : ι), x j • t.basis j * y i • t.basis i :
-    by simp only [basis.equiv_fun_symm_apply, finset.sum_mul, finset.mul_sum]
-  ... = ∑ (i j : ι), x i • t.basis i * y j • t.basis j :
-    finset.sum_comm
-  ... = ∑ (i j : ι), (x i * y j) • ∑ (k : ι), t.basis.repr (t.basis i * t.basis j) k • t.basis k :
-    _
-  ... = ∑ (i j k : ι), (x i * y j * t.basis.repr (t.basis i * t.basis j) k) • t.basis k :
-    by simp only [finset.smul_sum, mul_smul]
-  ... = ∑ (i k j : ι), (x i * y j * t.basis.repr (t.basis i * t.basis j) k) • t.basis k :
-    finset.sum_congr rfl (λ _ _, finset.sum_comm)
-  ... = ∑ (k j i : ι), (x j * y i * t.basis.repr (t.basis j * t.basis i) k) • t.basis k :
-    finset.sum_comm
-  ... = t.basis.equiv_fun.symm (λ k, ∑ i j : ι, x i * y j * t.table i j k) :
-    by simp only [basis.equiv_fun_symm_apply, finset.sum_smul, t.mul_def],
-  refine finset.sum_congr rfl (λ i _, finset.sum_congr rfl (λ j _, _)),
-  simp only [finset.smul_sum, mul_smul, t.basis.sum_repr],
-  simp only [← @smul_eq_mul S],
-  rw [smul_comm (y j) (t.basis i) (t.basis j)],
-  simp only [smul_assoc],
-end
-
-/-
-lemma times_table.unfold_mul [fintype ι] (t : times_table ι R S) (x y : S) (k : ι) :
-  t.basis.repr (x * y) k =
-    ∑ i j : ι, t.basis.repr x i * t.basis.repr y j * t.table i j k :=
-begin
-  simp only [← basis.equiv_fun_apply],
-  rw [← t.basis.equiv_fun.symm_apply_apply x, ← t.basis.equiv_fun.symm_apply_apply y,
-    t.coeff_mul_coeff, linear_equiv.symm_apply_apply, linear_equiv.symm_apply_apply,
-    linear_equiv.apply_symm_apply]
-end
--/
 
 @[simp] lemma linear_equiv.map_bit0 {R M N : Type*} [semiring R] [add_comm_monoid M] [module R M] [add_comm_monoid N] [module R N]
   (f : M ≃ₗ[R] N) (x : M) : f (bit0 x) = bit0 (f x) :=
@@ -100,35 +80,38 @@ section add_comm_monoid
 variables {R S ι : Type*} [fintype ι] [comm_semiring R] [add_comm_monoid S] [module R S]
 variables [has_mul S]
 
-protected lemma eval_repr_zero (t : times_table ι R S) (k : ι) :
-  t.basis.repr 0 k = 0 :=
-by rw [_root_.map_zero, finsupp.zero_apply]
+protected lemma coord_zero (t : times_table ι R S) (k : ι) :
+  t.coord 0 k = 0 :=
+by rw [← t.basis_repr_eq, _root_.map_zero, finsupp.zero_apply]
 
-protected lemma eval_repr_bit0 (t : times_table ι R S) (k : ι) {e₁ : S} {e₁' e' : R}
-  (e₁_eq : t.basis.repr e₁ k = e₁') (e_eq : e₁' + e₁' = e') :
-  t.basis.repr (bit0 e₁) k = e' :=
-by rw [bit0, _root_.map_add, finsupp.add_apply, e₁_eq, e_eq]
+protected lemma coord_bit0 (t : times_table ι R S) (k : ι) {e₁ : S} {e₁' e' : R}
+  (e₁_eq : t.coord e₁ k = e₁') (e_eq : e₁' + e₁' = e') :
+  t.coord (bit0 e₁) k = e' :=
+by rw [bit0, ← t.basis_repr_eq, _root_.map_add, finsupp.add_apply, t.basis_repr_eq, e₁_eq, e_eq]
 
-protected lemma eval_repr_bit1 [has_one S] (t : times_table ι R S) (k : ι) {e₁ : S} {e₁' e' o : R}
-  (e₁_eq : t.basis.repr e₁ k = e₁') (one_eq : t.basis.repr 1 k = o) (e_eq : e₁' + e₁' + o = e') :
-  t.basis.repr (bit1 e₁) k = e' :=
-by simp only [bit1, bit0, _root_.map_add, finsupp.add_apply, e₁_eq, one_eq, e_eq]
+protected lemma coord_bit1 [has_one S] (t : times_table ι R S) (k : ι) {e₁ : S} {e₁' e₁2 e' o : R}
+  (e₁_eq : t.coord e₁ k = e₁') (one_eq : t.coord 1 k = o) (e2_eq : e₁' + e₁' = e₁2)
+  (e_eq : e₁2 + o = e') :
+  t.coord (bit1 e₁) k = e' :=
+by simp only [← t.basis_repr_eq,bit1, bit0, _root_.map_add, finsupp.add_apply, t.basis_repr_eq,
+  e₁_eq, e2_eq, one_eq, e_eq]
 
-protected lemma eval_repr_add (t : times_table ι R S) (k : ι) {e₁ e₂ : S} {e₁' e₂' e' : R}
-  (e₁_eq : t.basis.repr e₁ k = e₁') (e₂_eq : t.basis.repr e₂ k = e₂') (e_eq : e₁' + e₂' = e') :
-  t.basis.repr (e₁ + e₂) k = e' :=
-by rw [_root_.map_add, finsupp.add_apply, e₁_eq, e₂_eq, e_eq]
+protected lemma coord_add (t : times_table ι R S) (k : ι) {e₁ e₂ : S} {e₁' e₂' e' : R}
+  (e₁_eq : t.coord e₁ k = e₁') (e₂_eq : t.coord e₂ k = e₂') (e_eq : e₁' + e₂' = e') :
+  t.coord (e₁ + e₂) k = e' :=
+by rw [← t.basis_repr_eq,_root_.map_add, finsupp.add_apply, t.basis_repr_eq, e₁_eq, t.basis_repr_eq,
+    e₂_eq, e_eq]
 
-protected lemma eval_repr_mul (t : times_table ι R S) (k : ι) (e₁ e₂ : S) (e' : R)
-  (eq : ∑ i j : ι, t.basis.repr e₁ i * t.basis.repr e₂ j * t.table i j k = e') :
-  t.basis.repr (e₁ * e₂) k = e' :=
+protected lemma coord_mul (t : times_table ι R S) (k : ι) (e₁ e₂ : S) (e' : R)
+  (eq : ∑ i j : ι, t.coord e₁ i * t.coord e₂ j * t.table i j k = e') :
+  t.coord (e₁ * e₂) k = e' :=
 by rw [times_table.unfold_mul t, eq]
 
-protected lemma eval_repr_repr_table {r₁ r₂ : ι → R} {t : ι → ι → ι → R} {i j k : ι}
-  {e₁' e₂' t' e' : R} (e₁_eq : r₁ i = e₁') (e₂_eq : r₂ j = e₂')
-  (t_eq : t i j k = t') (eq : e₁' * e₂' * t' = e') :
-  r₁ i * r₂ j * t i j k = e' :=
-by rw [e₁_eq, e₂_eq, t_eq, eq]
+protected lemma coord_repr_table {ι : Sort*}
+  {r₁i r₂j tijk e₁' e₂' t' e₁e₂ e' : R} (e₁_eq : r₁i = e₁') (e₂_eq : r₂j = e₂')
+  (t_eq : tijk = t') (e₁e₂_eq : e₁' * e₂' = e₁e₂) (eq : e₁e₂ * t' = e') :
+  r₁i * r₂j * tijk = e' :=
+by rw [e₁_eq, e₂_eq, t_eq, e₁e₂_eq, eq]
 
 end add_comm_monoid
 
@@ -137,23 +120,23 @@ section semiring
 variables {R S ι : Type*} [fintype ι] [comm_semiring R] [semiring S] [module R S]
 
 protected lemma eval_pow_zero (t : times_table ι R S) (k : ι) (e₁ : S) {e' : R}
-  (e_eq : t.basis.repr 1 k = e') :
-  t.basis.repr (e₁ ^ 0) k = e' :=
+  (e_eq : t.coord 1 k = e') :
+  t.coord (e₁ ^ 0) k = e' :=
 by rw [pow_zero, e_eq]
 
 protected lemma eval_pow_one (t : times_table ι R S) (k : ι) {e₁ : S} {e' : R}
-  (e_eq : t.basis.repr e₁ k = e') :
-  t.basis.repr (e₁ ^ 1) k = e' :=
+  (e_eq : t.coord e₁ k = e') :
+  t.coord (e₁ ^ 1) k = e' :=
 by rw [pow_one, e_eq]
 
 protected lemma eval_pow_bit0 (t : times_table ι R S) (k : ι) (n : ℕ) {e₁ : S} {e' : R}
-  (e_eq : t.basis.repr (e₁ ^ n * e₁ ^ n) k = e') :
-  t.basis.repr (e₁ ^ (bit0 n)) k = e' :=
+  (e_eq : t.coord (e₁ ^ n * e₁ ^ n) k = e') :
+  t.coord (e₁ ^ (bit0 n)) k = e' :=
 by rw [pow_bit0, e_eq]
 
 protected lemma eval_pow_bit1 (t : times_table ι R S) (k : ι) (n : ℕ) {e₁ : S} {e' : R}
-  (e_eq : t.basis.repr (e₁ ^ n * e₁ ^ n * e₁) k = e') :
-  t.basis.repr (e₁ ^ (bit1 n)) k = e' :=
+  (e_eq : t.coord (e₁ ^ n * e₁ ^ n * e₁) k = e') :
+  t.coord (e₁ ^ (bit1 n)) k = e' :=
 by rw [pow_bit1, e_eq]
 
 end semiring
@@ -162,10 +145,16 @@ section ring
 
 variables {R S ι : Type*} [fintype ι] [comm_ring R] [ring S] [module R S]
 
-protected lemma eval_repr_sub (t : times_table ι R S) (k : ι) {e₁ e₂ : S} {e₁' e₂' e' : R}
-  (e₁_eq : t.basis.repr e₁ k = e₁') (e₂_eq : t.basis.repr e₂ k = e₂') (e_eq : e₁' - e₂' = e') :
-  t.basis.repr (e₁ - e₂) k = e' :=
-by rw [_root_.map_sub, finsupp.sub_apply, e₁_eq, e₂_eq, e_eq]
+protected lemma coord_sub (t : times_table ι R S) (k : ι) {e₁ e₂ : S} {e₁' e₂' e' : R}
+  (e₁_eq : t.coord e₁ k = e₁') (e₂_eq : t.coord e₂ k = e₂') (e_eq : e₁' - e₂' = e') :
+  t.coord (e₁ - e₂) k = e' :=
+by rw [← t.basis_repr_eq, _root_.map_sub, finsupp.sub_apply, t.basis_repr_eq, e₁_eq,
+  t.basis_repr_eq, e₂_eq, e_eq]
+
+protected lemma coord_neg (t : times_table ι R S) (k : ι) {e₁ : S} {e₁' e' : R}
+  (e₁_eq : t.coord e₁ k = e₁') (e_eq : -e₁' = e') :
+  t.coord (-e₁) k = e' :=
+by rw [← t.basis_repr_eq, _root_.map_neg, finsupp.neg_apply, t.basis_repr_eq, e₁_eq, e_eq]
 
 end ring
 
@@ -220,7 +209,7 @@ state_t.get
 
 meta def to_expr' : pexpr → tactic expr := i_to_expr
 
-meta def to_expr : pexpr → eval_m expr := lift ∘ i_to_expr
+meta def to_expr : pexpr → eval_m expr := lift ∘ to_expr'
 
 end converter
 
@@ -238,11 +227,19 @@ meta def decide_eq (l r : expr) : tactic (bool × expr) := do
   n₁ ← l'.to_rat, n₂ ← r'.to_rat,
   c ← infer_type l' >>= mk_instance_cache,
   if n₁ = n₂ then do
-    pf ← to_expr' ``(eq.trans %%l'_pf $ eq.symm %%r'_pf),
+    pf ← mk_eq_symm r'_pf >>= mk_eq_trans l'_pf,
     pure (tt, pf)
   else do
     (_, p) ← norm_num.prove_ne c l' r' n₁ n₂,
     pure (ff, p)
+
+lemma list.mem_cons_of_head {α : Type*} {x y : α} (ys : list α) (h₁ : x = y) :
+  x ∈ y :: ys :=
+(list.mem_cons_iff x y _).mpr (or.inl h₁)
+
+lemma list.mem_cons_of_tail {α : Type*} {x y : α} {ys : list α} (h₂ : x ∈ ys) :
+  x ∈ y :: ys :=
+(list.mem_cons_iff x y _).mpr (or.inr h₂)
 
 lemma list.not_mem_cons {α : Type*} {x y : α} {ys : list α} (h₁ : x ≠ y) (h₂ : x ∉ ys) :
   x ∉ y :: ys :=
@@ -256,20 +253,20 @@ This procedure is partial iff its parameter `decide_eq` is partial.
 meta def list.decide_mem (decide_eq : expr → expr → tactic (bool × expr)) :
   expr → list expr → tactic (bool × expr)
 | x [] := do
-  pf ← to_expr' ``(list.not_mem_nil %%x),
+  pf ← mk_app `list.not_mem_nil [x],
   pure (ff, pf)
 | x (y :: ys) := do
   (is_head, head_pf) ← decide_eq x y,
   if is_head then do
-    pf ← to_expr' ``((list.mem_cons_iff %%x %%y _).mpr (or.inl %%head_pf)),
+    pf ← mk_app `list.mem_cons_of_head [head_pf],
     pure (tt, pf)
   else do
     (mem_tail, tail_pf) ← list.decide_mem x ys,
     if mem_tail then do
-      pf ← to_expr' ``((list.mem_cons_iff %%x %%y _).mpr (or.inr %%tail_pf)),
+      pf ← mk_app `list.mem_cons_of_tail [tail_pf],
       pure (tt, pf)
     else do
-      pf ← to_expr' ``(list.not_mem_cons %%head_pf %%tail_pf),
+      pf ← mk_app `list.not_mem_cons [head_pf, tail_pf],
       pure (ff, pf)
 
 lemma finset.insert_eq_coe_list_of_mem {α : Type*} [decidable_eq α] (x : α) (xs : finset α)
@@ -301,6 +298,12 @@ lemma list.map_cons_congr {α β : Type*} (f : α → β) (x : α) (xs : list α
   (h₁ : f x = fx) (h₂ : xs.map f = fxs) : (x :: xs).map f = fx :: fxs :=
 by rw [list.map_cons, h₁, h₂]
 
+meta def list.to_expr (α : expr) : list expr → tactic expr
+| [] := mk_app `list.nil [α]
+| (ex :: xs) := do
+  exs ← list.to_expr xs,
+  mk_app `list.cons [α, ex, exs]
+
 /-- Apply `ef : α → β` to all elements of the list, constructing an equality proof.
 `eval_f (x : expr) : tactic (expr × expr)` is a conversion procedure for simplifying expressions
 of the form `(%%ef %%x), where `ef : expr` is the function to apply and `x : expr` is a list
@@ -309,17 +312,20 @@ element.
 meta def eval_list_map {α β : Type*} (ef : expr)
   (eval_f : expr × α → eval_m (expr × expr × β)) :
   expr → list (α) → state_t context tactic (list (expr × β) × expr)
-| `(list.nil) [] := do
-  eq ← to_expr ``(list.map_nil %%ef),
-  pure ([], eq)
+| exs [] := do
+  match exs with
+  | `(list.nil) := do
+    eq ← lift $ mk_app `list.map_nil [ef],
+    pure ([], eq)
+  | _ := lift $ fail!"eval_list_map: expecting `list.nil`, received {exs}"
+  end
 | `(list.cons %%ex %%exs) (x :: xs) := do
   (fx, fx_eq, fx_d) ← eval_f (ex, x),
   (fxs, fxs_eq) ← eval_list_map exs xs,
   ty ← lift $ infer_type fx,
-  fxs_list ← to_expr  ``(@list.nil %%ty) >>= λ nil, fxs.mfoldr (λ x xs, to_expr ``(@list.cons %%ty %%(x.fst) %%xs)) nil,
-  eq ← to_expr ``(list.map_cons_congr %%ef %%ex %%exs %%fx %%fxs_list %%fx_eq %%fxs_eq),
+  fxs_list ← lift $ list.to_expr ty (fxs.map prod.fst),
+  eq ← lift $ mk_app `tactic.times_table.tactic.norm_num.list.map_cons_congr [ef, ex, exs, fx, fxs_list, fx_eq, fxs_eq],
   pure ((fx, fx_d) :: fxs, eq)
-| exs [] := lift $ fail format!"eval_list_map: expecting `list.nil`, received {exs}"
 | exs (_ :: _) := lift $ fail format!"eval_list_map: expecting `list.cons _ _`, received {exs}"
 
 lemma list.cons_congr {α : Type*} (x : α) {xs : list α} {xs' : list α} (xs_eq : xs' = xs) :
@@ -338,8 +344,8 @@ meta def eval_list : expr → eval_m (expr × expr × list expr)
   pure (e, eq, [])
 | e@`(list.cons %%x %%xs) := do
   (exs, xs_eq, xs) ← eval_list xs,
-  e' ← to_expr ``(list.cons %%x %%exs),
-  eq ← to_expr ``(list.cons_congr %%x %%xs_eq),
+  e' ← lift $ mk_app `list.cons [x, exs],
+  eq ← lift $ mk_app `list.cons_congr [x, xs_eq],
   pure (e', eq, x :: xs)
 /-
 | e@`(list.range %%en) := do
@@ -388,13 +394,13 @@ meta def eval_multiset : expr → eval_m (expr × expr × list expr)
   pure (e, eq, [x])
 | e@`(multiset.cons %%x %%xs) := do
   (exs, xs_eq, xs) ← eval_multiset xs,
-  e' ← to_expr ``(multiset.cons %%x %%exs),
-  eq ← to_expr ``(multiset.cons_congr %%x %%xs_eq),
+  e' ← lift $ mk_app `multiset.cons [x, exs],
+  eq ← lift $ mk_app `multiset.cons_congr [x, xs_eq],
   pure (e', eq, x :: xs)
 | e@`(@@has_insert.insert multiset.has_insert %%x %%xs) := do
   (exs, xs_eq, xs) ← eval_multiset xs,
-  e' ← to_expr ``(multiset.cons %%x %%exs),
-  eq ← to_expr ``(multiset.cons_congr %%x %%xs_eq),
+  e' ← lift $ mk_app `multiset.cons [x, exs],
+  eq ← lift $ mk_app `multiset.cons_congr [x, xs_eq],
   pure (e', eq, x :: xs)
 /-
 | e@`(multiset.range %%en) := do
@@ -565,13 +571,13 @@ by rw [← hs, finset.prod_mk, multiset.coe_map, multiset.coe_prod, hx]
 
 meta def eval_finset_sum {α β : Type*} (eval_set : expr × unit → eval_m (expr × expr × list β))
   (eval_zero : eval_m (expr × expr × α)) (eval_add : expr × α → expr × α → eval_m (expr × expr × α))
-  (eval_f : expr × β → eval_m (expr × expr × α)) (eβ ef : expr) (es : expr) :
+  (eval_f : expr → expr × β → eval_m (expr × expr × α)) (eβ ef : expr) (es : expr) :
   eval_m (expr × expr × α) :=
 trace_error "internal error in eval_finset_sum" $ do
   (es', list_eq, xs) ← eval_set (es, ()),
   match es' with
   | `(finset.mk (coe %%exs) %%nodup) := do
-    (result, sum_eq, result_d) ← list.prove_sum_map eβ ef eval_zero eval_add eval_f exs xs,
+    (result, sum_eq, result_d) ← list.prove_sum_map eβ ef eval_zero eval_add (eval_f ef) exs xs,
     pf ← to_expr ``(finset.eval_sum_of_list %%es %%ef %%nodup %%list_eq %%sum_eq),
     pure (result, pf, result_d)
   | _ := do
@@ -584,7 +590,7 @@ trace_error "internal error in eval_finset_sum" $ do
  * a list of extra information, one per term in `bs` -/
 meta def norm_finset_sum {α β : Type*} (eval_set : expr × unit → eval_m (expr × expr × list β))
   (eval_zero : eval_m (expr × expr × α)) (eval_add : expr × α → expr × α → eval_m (expr × expr × α))
-  (eval_f : expr × β → eval_m (expr × expr × α)) : expr → eval_m (expr × expr × α)
+  (eval_f : expr → expr × β → eval_m (expr × expr × α)) : expr → eval_m (expr × expr × α)
 | `(@finset.sum %%β %%α %%inst %%es %%ef) := eval_finset_sum eval_set eval_zero eval_add eval_f β ef es
 | e := lift $ fail $ format! "norm_finset_sum: expected ∑ i in s, f i, got {e}"
 
@@ -667,7 +673,7 @@ meta def norm_vec_cons : expr → tactic (expr × expr)
 
 end matrix
 
-/-- Simplify expressions of the form `(t : times_table).basis.repr x k` using lemmas tagged
+/-- Simplify expressions of the form `(t : times_table).coord x k` using lemmas tagged
 `@[times_table_simps]`. -/
 -- @[norm_num]
 meta def simp_times_table : converter
@@ -744,6 +750,12 @@ do
   (e', p') ← tactic.norm.ring.eval_add eval_add_cf l.2 r.2,
   return (e', p', e')
 
+meta def eval_ring_mul (l r : expr × tactic.norm.ring.horner_expr ℚ) :
+  eval_m (expr × expr × tactic.norm.ring.horner_expr ℚ) := do
+do
+  (e', p') ← tactic.norm.ring.eval_mul eval_add_cf eval_mul_cf l.2 r.2,
+  return (e', p', e')
+
 lemma unfold_sub {α} [add_group α] (a b b' c : α)
   (hb : -b = b') (h : a + b' = c) : a - b = c :=
 by rw [sub_eq_add_neg, hb, h]
@@ -755,6 +767,12 @@ do
   (e', p') ← tactic.norm.ring.eval_add eval_add_cf l.2 r',
   p ← to_expr ``(unfold_sub %%(l.2 : expr) %%(r.2 : expr) %%(r' : expr) %%(e' : expr) %%r'_eq %%p'),
   return (e', p, e')
+
+meta def eval_ring_neg (e : expr × tactic.norm.ring.horner_expr ℚ) :
+  eval_m (expr × expr × tactic.norm.ring.horner_expr ℚ) := do
+do
+  (e', p') ← tactic.norm.ring.eval_neg eval_neg_cf e.2,
+  return (e', p', e')
 
 meta def mk_cached_finset_univ (ι inst : expr) (ctx : context) : eval_m (expr × expr × list expr) :=
 do
@@ -774,93 +792,145 @@ meta def get_cached_finset_univ : expr × unit → eval_m (expr × expr × list 
     end
 | e := lift $ fail format!"get_cached_finset_univ: expected `(univ : finset _)`, got {e}"
 
-/-- Normalize `((t : times_table _ _ _).basis.repr e) k` into Horner form. -/
-protected meta def eval (ι R S t k : expr) :
+meta def eq_rhs (e : expr) : tactic expr := do
+  t ← infer_type e,
+  match t with
+  | `(_ = %%rhs) := pure rhs
+  | _ := fail!"eq_rhs: expecting type of form `(_ = _), got {t}"
+  end
+
+/-- Evaluate expressions of the form `t.coord e₁ i * t.coord e₂ j * t.table i j k`.
+
+`eval_coord` is a procedure for evaluating expression of the form `t.coord %%e %%i`.
+This is passed as a separate parameter since Lean's support for mutual recursion is limited,
+and we tie the recursive knot ourselves.
+-/
+meta def eval_mul_mul (ι R : expr)
+  (eval_coord : expr → expr → eval_m (expr × expr × tactic.norm.ring.horner_expr ℚ)) :
   expr → eval_m (expr × expr × tactic.norm.ring.horner_expr ℚ)
-| `(0) := trace_error "zero" $ do
+| `(%%e₁i * %%e₂j * %%tableij) := trace_error "internal error in `eval_mul_mul`" $ do
+  ι_sort ← lift $ infer_type ι,
+  ι_level ← match ι_sort.match_sort with
+  | (some ι_level) := pure ι_level
+  | none := lift $ fail!"expecting (ι : Type), got ({ι} : {ι_sort})"
+  end,
+
+  -- Simplify and evaluate `t.coord e₁ i`
+  (e₁i', e₁i_pf₁) ← simp_times_table.trans (converter.lift norm_vec_cons) e₁i,
+  (e₁i', e₁i_pf₂, e₁i_expr) ← match e₁i' with
+  | `(times_table.coord %%t %%e₁ %%i) := eval_coord e₁ i
+  | _ := eval_ring (e₁i', ())
+  end,
+  e₁i_pf ← lift $ mk_eq_trans e₁i_pf₁ e₁i_pf₂,
+
+  -- Simplify and evaluate `t.coord e₂ j`
+  (e₂j', e₂j_pf₁) ← simp_times_table.trans (converter.lift norm_vec_cons) e₂j,
+  (e₂j', e₂j_pf₂, e₂j_expr) ← match e₂j' with
+  | `(times_table.coord %%t %%e₁ %%i) := eval_coord e₁ i
+  | _ := eval_ring (e₂j', ())
+  end,
+  e₂j_pf ← lift $ mk_eq_trans e₂j_pf₁ e₂j_pf₂,
+
+  -- Simplify and evaluate `t.table i j k`
+  (tableij', tableij_pf₁) ← simp_times_table.trans (λ e, match e with
+  | (expr.app (expr.app ti@(expr.app t i) j) k) := do
+    (ti', ti_pf) ← lift $ norm_vec_cons ti,
+    (tij', tij_pf) ← lift $ norm_vec_cons (expr.app ti' j),
+    pf ← lift $ mk_app `tactic.times_table.eval_vec_cons_pf [R, ι, t, i, j, k, ti', ti_pf, tij', tij_pf],
+    pure (expr.app tij' k, pf)
+  | e := lift $ pformat!"expected `t.table i j k`, got {e}" >>= fail
+  end) tableij,
+  (tableij', tableij_pf₂, tableij_expr) ← eval_ring (tableij', ()),
+  tableij_pf ← lift $ mk_eq_trans tableij_pf₁ tableij_pf₂,
+
+  (e₁e₂, e₁e₂_pf, e₁e₂_expr) ← eval_ring_mul (e₁i', e₁i_expr) (e₂j', e₂j_expr),
+  (e', e_pf, he') ← eval_ring_mul (e₁e₂, e₁e₂_expr) (tableij', tableij_expr),
+  pf ← norm.ring.ic_lift (λ ic, do
+    let n := `tactic.times_table.coord_repr_table,
+    let l := [ι, e₁i, e₂j, tableij, e₁i', e₂j', tableij', e₁e₂, e', e₁i_pf, e₂j_pf, tableij_pf,
+              e₁e₂_pf, e_pf],
+    d ← get_decl n,
+    (ic, l) ← ic.append_typeclasses d.type.binding_body l,
+    return (ic, (expr.const n [ic.univ, ι_level]).mk_app (ic.α :: l))  ),
+  pure (e', pf, he')
+| e := lift $ pformat!"expected `t.coord e₁ i * t.coord e₂ j * t.table i j k`, got {e}" >>= fail
+
+/-- Normalize `((t : times_table _ _ _).coord e) k` into Horner form. -/
+protected meta def eval (ι R S t : expr) :
+  expr → expr → eval_m (expr × expr × tactic.norm.ring.horner_expr ℚ)
+| `(0) k := trace_error "zero" $ do
   e ← lift $ expr.of_nat R 0,
-  pf ← to_expr ``(tactic.times_table.eval_repr_zero %%t %%k),
+  pf ← to_expr ``(tactic.times_table.coord_zero %%t %%k),
   pure (e, pf, tactic.norm.ring.horner_expr.const e 0)
-| `(bit0 %%e₁) := trace_error "bit0" $ do
-  (e₁', e₁_eq, he₁') ← eval e₁,
+| `(bit0 %%e₁) k := trace_error "bit0" $ do
+  (e₁', e₁_eq, he₁') ← eval e₁ k,
   (e', e_eq, he') ← eval_ring_add (e₁', he₁') (e₁', he₁'),
-  eq ← to_expr ``(tactic.times_table.eval_repr_bit0 %%t %%k %%e₁_eq %%e_eq),
+  eq ← to_expr ``(tactic.times_table.coord_bit0 %%t %%k %%e₁_eq %%e_eq),
   pure (e', eq, he')
-| `(bit1 %%e₁) := trace_error "bit1" $ do
-  (e₁', e₁_eq, he₁') ← eval e₁,
-  (one', one_eq, hone') ← (lift $ expr.of_nat S 1) >>= eval,
+| `(bit1 %%e₁) k := trace_error "bit1" $ do
+  (e₁', e₁_eq, he₁') ← eval e₁ k,
+  (one', one_eq, hone') ← (lift $ expr.of_nat S 1) >>= (λ e, eval e k),
   (e', e_eq, he') ← eval_ring_add (e₁', he₁') (e₁', he₁'),
-  (e'', e'_eq, he'') ← eval_ring_add (e₁', he₁') (one', hone'),
-  eq ← to_expr ``(tactic.times_table.eval_repr_bit1 %%t %%k %%e₁_eq %%one_eq %%e'_eq),
+  (e'', e'_eq, he'') ← eval_ring_add (e', he') (one', hone'),
+  eq ← to_expr ``(tactic.times_table.coord_bit1 %%t %%k %%e₁_eq %%one_eq %%e_eq %%e'_eq),
   pure (e'', eq, he'')
-| `(%%e₁ + %%e₂) := trace_error "add" $ do
-  (e₁', e₁_eq, he₁') ← eval e₁,
-  (e₂', e₂_eq, he₂') ← eval e₂,
+| `(%%e₁ + %%e₂) k := trace_error "add" $ do
+  (e₁', e₁_eq, he₁') ← eval e₁ k,
+  (e₂', e₂_eq, he₂') ← eval e₂ k,
   (e', e_eq, he') ← eval_ring_add (e₁', he₁') (e₂', he₂'),
-  eq ← to_expr ``(tactic.times_table.eval_repr_add %%t %%k %%e₁_eq %%e₂_eq %%e_eq),
+  eq ← to_expr ``(tactic.times_table.coord_add %%t %%k %%e₁_eq %%e₂_eq %%e_eq),
   pure (e', eq, he')
-| `(%%e₁ - %%e₂) := trace_error "sub" $ do
-  (e₁', e₁_eq, he₁') ← eval e₁,
-  (e₂', e₂_eq, he₂') ← eval e₂,
+| `(%%e₁ - %%e₂) k := trace_error "sub" $ do
+  (e₁', e₁_eq, he₁') ← eval e₁ k,
+  (e₂', e₂_eq, he₂') ← eval e₂ k,
   (e', e_eq, he') ← eval_ring_sub (e₁', he₁') (e₂', he₂'),
-  eq ← to_expr ``(tactic.times_table.eval_repr_sub %%t %%k %%e₁_eq %%e₂_eq %%e_eq),
+  eq ← to_expr ``(tactic.times_table.coord_sub %%t %%k %%e₁_eq %%e₂_eq %%e_eq),
   pure (e', eq, he')
-| `(%%e₁ * %%e₂) := trace_error "error in mul" $ do
-    e ← to_expr ``(∑ (i j : %%ι), (%%t).basis.repr %%e₁ i * (%%t).basis.repr %%e₂ j * (%%t).table i j %%k),
-    (e', e_eq, he') ← tactic.norm_num.norm_finset_sum get_cached_finset_univ (eval_ring_zero R) eval_ring_add -- evaluates the sum over i
-      (λ ⟨i, _⟩, do
-        term ← to_expr ``(∑ (j : %%ι), (%%t).basis.repr %%e₁ %%i * (%%t).basis.repr %%e₂ j * (%%t).table %%i j %%k),
-        tactic.norm_num.norm_finset_sum get_cached_finset_univ (eval_ring_zero R) eval_ring_add -- evaluates the sum over j
-          (λ ⟨j, _⟩, do
-            term ← to_expr ``((%%t).basis.repr %%e₁ %%i * (%%t).basis.repr %%e₂ %%j * (%%t).table %%i %%j %%k),
-            match term with
-            | `(%%e₁i * %%e₂j * %%tableij) := do
-                (e₁i', e₁i_pf) ← simp_times_table.trans (converter.lift norm_vec_cons) e₁i,
-                (e₂j', e₂j_pf) ← simp_times_table.trans (converter.lift norm_vec_cons) e₂j,
-                (tableij', tableij_pf) ← simp_times_table.trans (λ e, match e with
-                | (expr.app (expr.app ti@(expr.app t i) j) k) := do
-                  (ti', ti_pf) ← lift $ norm_vec_cons ti,
-                  (tij', tij_pf) ← lift $ norm_vec_cons (expr.app ti' j),
-                  pf ← to_expr ``(tactic.times_table.eval_vec_cons_pf %%t %%i %%j %%k %%ti_pf %%tij_pf),
-                  pure (expr.app tij' k, pf)
-                | e := lift $ pformat!"expected `t.table i j k`, got {e}" >>= fail
-                end) tableij,
-                e ← to_expr ``(%%e₁i' * %%e₂j' * %%tableij'),
-                (e', e_pf, he') ← eval_ring (e, ()),
-                pf ← to_expr ``(tactic.times_table.eval_repr_repr_table %%e₁i_pf %%e₂j_pf %%tableij_pf %%e_pf),
-                pure (e', pf, he')
-            | e := lift $ pformat!"expected `t.basis.repr e₁ i * t.basis.repr e₂ j * t.table i j k`, got {e}" >>= fail
-            end)
-          term)
-      e,
-    eq ← lift $ mk_app `tactic.times_table.eval_repr_mul [t, k, e₁, e₂, e', e_eq],
-    pure (e', eq, he')
-| `(%%e₁ ^ %%n) := trace_error "pow" $ do
+| `(-%%e₁) k := trace_error "neg" $ do
+  (e₁', e₁_eq, he₁') ← eval e₁ k,
+  (e', e_eq, he') ← eval_ring_neg (e₁', he₁'),
+  eq ← to_expr ``(tactic.times_table.coord_neg %%t %%k %%e₁_eq %%e_eq),
+  pure (e', eq, he')
+| e@`(%%e₁ * %%e₂) k := trace_error "error in mul" $ do
+  eq_sum_mul_times_table ← lift $ mk_app `times_table.unfold_mul [t, e₁, e₂, k],
+  e ← lift $ eq_rhs eq_sum_mul_times_table,
+  (e', e_eq, he') ← tactic.norm_num.norm_finset_sum get_cached_finset_univ (eval_ring_zero R) eval_ring_add -- evaluates the sum over i
+    (λ f ⟨i, ei⟩, do
+      term ← lift $ whnf (f i) transparency.reducible,
+      tactic.norm_num.norm_finset_sum get_cached_finset_univ (eval_ring_zero R) eval_ring_add -- evaluates the sum over j
+        (λ f ⟨j, _⟩, do
+          term ← lift $ whnf (f j) transparency.reducible,
+          eval_mul_mul ι R eval term)
+        term)
+    e,
+  eq ← lift $ mk_eq_trans eq_sum_mul_times_table e_eq,
+  pure (e', eq, he')
+| `(%%e₁ ^ %%n) k := trace_error "pow" $ do
   match norm_num.match_numeral n with
   | norm_num.match_numeral_result.zero := do
     one ← lift $ expr.of_nat S 1,
-    (one', one_eq, hone') ← eval one,
+    (one', one_eq, hone') ← eval one k,
     eq ← to_expr ``(tactic.times_table.eval_pow_zero %%t %%k %%e₁ %%one_eq),
     pure (one', eq, hone')
   | norm_num.match_numeral_result.one := do
-    (e', e₁_eq, he') ← eval e₁,
+    (e', e₁_eq, he') ← eval e₁ k,
     eq ← to_expr ``(tactic.times_table.eval_pow_one %%t %%k %%e₁_eq),
     pure (e', eq, he')
   | norm_num.match_numeral_result.bit0 b := do
     e₁' ← to_expr ``((%%e₁ ^ %%b) * (%%e₁ ^ %%b)),
-    (e', e_eq, he') ← eval e₁',
+    (e', e_eq, he') ← eval e₁' k,
     eq ← to_expr ``(tactic.times_table.eval_pow_bit0 %%t %%k %%b %%e_eq),
     pure (e', eq, he')
   | norm_num.match_numeral_result.bit1 b := do
     e₁' ← to_expr ``((%%e₁ ^ %%b) * (%%e₁ ^ %%b) * %%e₁),
-    (e', e_eq, he') ← eval e₁',
+    (e', e_eq, he') ← eval e₁' k,
     eq ← to_expr ``(tactic.times_table.eval_pow_bit1 %%t %%k %%b %%e_eq),
     pure (e', eq, he')
 
   | _ := lift $ tactic.fail "Expecting numeral in exponent"
   end
-| e := trace_error "times_table_simps" $ do
-  full_e ← to_expr ``(basis.repr (times_table.basis %%t) %%e %%k),
+| e k := trace_error "times_table_simps" $ do
+  full_e ← to_expr ``(times_table.coord %%t %%e %%k),
   (e', pr) ← simp_times_table full_e,
   (e'', pr', he'') ← eval_ring (e', ()),
   pf ← lift $ mk_eq_trans pr pr',
@@ -898,15 +968,14 @@ meta def run_converter (ek : expr) : converter → expr → tactic (expr × expr
 
 set_option eqn_compiler.max_steps 4096
 
-/-- Normalize expressions of the form `basis.repr (times_table.basis _) _`. -/
+/-- Normalize expressions of the form `t.coord _`. -/
 protected meta def norm_conv : converter
-| ek@(expr.app (expr.app coe_fn' (expr.app `(coe_fn (basis.repr (times_table.basis %%t))) e)) k) := do
-  -- TODO: check that `coe_fn'` is indeed `⇑`
+| ek@(expr.app (expr.app `(times_table.coord %%t) e) k) := do
   ι ← lift $ infer_type k,
   S ← lift $ infer_type e,
   R ← lift $ infer_type ek,
   (e', pf, he') ← trace_error "Internal error in `tactic.times_table.eval`:" $
-    tactic.times_table.eval ι R S t k e,
+    tactic.times_table.eval ι R S t e k,
   pf_ty ← lift $ infer_type pf,
   match pf_ty with
   | `(%%lhs = %%rhs) := do
@@ -917,16 +986,15 @@ protected meta def norm_conv : converter
   pure (e', pf)
 | _ := failure
 
-/-- `norm_num` extension for expressions of the form `basis.repr (times_table.basis _) _` -/
+/-- `norm_num` extension for expressions of the form `times_table.coord t _` -/
 @[norm_num]
 protected meta def norm : expr → tactic (expr × expr)
-| ek@(expr.app (expr.app coe_fn' (expr.app `(coe_fn (basis.repr (times_table.basis %%t))) e)) k) := do
-  -- TODO: check that `coe_fn'` is indeed `⇑`
+| ek@(expr.app (expr.app `(times_table.coord %%t) e) k) := do
   ι ← infer_type k,
   S ← infer_type e,
   R ← infer_type ek,
   (e', pf) ← tactic.trace_error "Internal error in `tactic.times_table.eval`:" $
-    run_converter ek (tactic.times_table.eval ι R S t k >=> λ eph, pure (eph.1, eph.2.1)) e,
+    run_converter ek (λ e, tactic.times_table.eval ι R S t e k >>= λ eph, pure (eph.1, eph.2.1)) e,
   pf_ty ← infer_type pf,
   match pf_ty with
   | `(%%lhs = %%rhs) := do

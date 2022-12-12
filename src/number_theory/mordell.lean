@@ -1,26 +1,18 @@
-import ring_theory.adjoin_root
-import ring_theory.norm
-import ring_theory.class_group
-import data.zmod.basic
-import ring_theory.dedekind_domain.integral_closure
-import linear_algebra.free_module.finite.basic
-import number_theory.quad_ring.basic
+import number_theory.class_number_eq
 import number_theory.ideal_norm
-import number_theory.class_number_bound
-import tactic.slim_check
 
 /-!
 # Solving the Mordell equation
 
 We solve the Mordell equation `y^2 = x^3 + d`, for `d ≤ -1`,
-`d % 4 ∈ {2, 3}` and class number of `ℚ(√ d)` not divisible by 3:
+`d % 4 ∈ {2, 3}` and class number of `ℚ(√d)` not divisible by 3:
 
  * `mordell_d`: the Mordell equation `y^2 = x^3 + d` has solutions only if
     `d = -3m^2 ± 1` for some `m : ℕ`
 
 ## Intermediate results:
- * `gcd_lemma`: if `y^2 - d = x^3`, then `⟨y + √ d⟩` and `⟨y - √ d⟩` are coprime
-    as ideals of `ℤ[√ d]`
+ * `gcd_lemma`: if `y^2 - d = x^3`, then `⟨y + √d⟩` and `⟨y - √d⟩` are coprime
+    as ideals of `ℤ[√d]`
 
 -/
 
@@ -84,137 +76,121 @@ end local_conditions
 
 open ideal
 
+lemma is_unit_of_dvd_four_mul_d_of_dvd_y_sq_sub_d {x y d : ℤ}
+  [hd : fact (d % 8 = 5 ∨ d % 4 = 2 ∨ d % 4 = 3)] [hy : fact (squarefree d)]
+  (h_eqn : y ^ 2 - d = x ^ 3)
+  {n : ℤ} (hd4 : n ∣ d * 2 ^ 2) (hyd : n ∣ y ^ 2 - d) :
+  is_unit n :=
+begin
+  -- Because the norm is coprime to 2, we conclude that it divides d and therefore it divides y.
+  have h2 : is_coprime n 2,
+  { refine (int.prime_two.coprime_iff_not_dvd.mpr _).symm,
+    intros h,
+    have : ¬ even (y ^ 2 - d),
+    { have hodd : ¬ even x,
+      { rcases hd.out with (hm|hm|hm),
+        { exact x_odd_five hm h_eqn, },
+        { exact x_odd_two hm h_eqn, },
+        { exact x_odd_three hm h_eqn, } },
+      simp only [h_eqn, hodd, not_false_iff, false_and] with parity_simps, },
+    exact this (even_iff_two_dvd.mpr (h.trans hyd)) },
+  have hd : n ∣ d := h2.pow_right.dvd_of_dvd_mul_right hd4,
+  have hy : n ∣ y^2 := (dvd_sub_left hd).mp hyd,
+
+  -- So it remains to show `d` and `y` are coprime.
+  refine (is_coprime.pow_right _).is_unit_of_dvd' hd hy,
+  -- We'll show that `(gcd d y)^2 ∣ d`, and since `d` is squarefree, conclude `gcd d y` is a unit.
+  -- Here the original proof goes to `zmod (gcd |d| |y|)`. We avoid the absolute values and
+  -- coercions into `zmod` by working only with divisibility.
+  rw ← gcd_is_unit_iff,
+  refine fact.out (squarefree d) _ _,
+  -- `(gcd d y)^2 ∣ y^2`, so we can show it divides the difference, which is equal to `x^3`.
+  rw [← pow_two, ← dvd_sub_right (pow_dvd_pow_of_dvd (gcd_dvd_right d y) _), h_eqn],
+  -- `(gcd d y)^2 ∣ x^3` if `gcd d y` divides `x`.
+  refine (pow_dvd_pow_of_dvd _ _).trans (pow_dvd_pow x (by norm_num)),
+  -- Since `gcd d y` is squarefree, this is indeed the case because it divides `x^3 = y^2 - d`.
+  rw [← unique_factorization_monoid.dvd_pow_iff_dvd_of_squarefree, ← h_eqn, dvd_sub_left],
+  { exact (gcd_dvd_right d y).trans (dvd_pow_self _ (by norm_num)) },
+  { exact gcd_dvd_left d y },
+  { exact squarefree_gcd_of_squarefree_left (fact.out _) },
+  { norm_num },
+end
+
 /--
-The ideals (y + √ d) and (y − √ d) are relatively prime.
+The ideals (y + √d) and (y − √d) are relatively prime.
 Based on the proof in Conrad, but generalised to any squarefree d ≅ 2,3 mod 4.
 -/
 lemma gcd_lemma {x y : ℤ} {d : ℤ} [fact $ d % 4 = 2 ∨ d % 4 = 3] [fact $ squarefree d]
   (h_eqn : y ^ 2 - d = x ^ 3) :
   gcd (ideal.span {⟨y, 1⟩} : ideal (quad_ring ℤ 0 d)) (ideal.span {⟨y, -1⟩}) = 1 :=
 begin
-  -- Let I and J be ⟨y + √ d⟩ and ⟨y - √ d⟩ respectively.
+  -- Let I and J be ⟨y + √d⟩ and ⟨y - √d⟩ respectively.
   set I := (ideal.span {⟨y, 1⟩} : ideal (quad_ring ℤ 0 d)),
   set J := (ideal.span {⟨y, -1⟩} : ideal (quad_ring ℤ 0 d)),
   -- We will show `gcd I J = I ⊔ J = 1` by showing its norm is a unit,
   -- because it divides both `d` and `y`, and those are coprime.
-  rw [one_eq_top, ← absolute_norm_eq_one_iff_eq_top, ← int.is_unit_coe_nat],
+  rw [one_eq_top, ← ideal.abs_norm_eq_one_iff, ← int.is_unit_coe_nat],
 
-  -- `(y + √ d) - (y - √ d) = 2 √ d` is in the supremum, so the norms divide each other.
-  have hd4 : (absolute_norm (gcd I J) : ℤ) ∣ d * 2^2,
-  { have : gcd I J ∣ span ({⟨0, 2⟩} : set (quad_ring ℤ 0 d)),
+  refine is_unit_of_dvd_four_mul_d_of_dvd_y_sq_sub_d h_eqn _ _,
+
+  -- `(y + √d) - (y - √d) = 2 √d` is in the supremum, so the norms divide each other.
+  { show (abs_norm (gcd I J) : ℤ) ∣ d * 2^2,
+    have : gcd I J ∣ span ({⟨0, 2⟩} : set (quad_ring ℤ 0 d)),
     { rw [gcd_eq_sup, dvd_span_singleton],
       convert submodule.sub_mem_sup
         (submodule.mem_span_singleton_self _) (submodule.mem_span_singleton_self _) using 1,
       calc_tac },
-    refine (int.coe_nat_dvd.mpr (map_dvd ideal.absolute_norm this)).trans _,
-    simp only [absolute_norm_span_singleton, norm_eq, zero_mul, zero_add, zero_pow' 2 (by norm_num),
+    refine (int.coe_nat_dvd.mpr (map_dvd ideal.abs_norm this)).trans _,
+    simp only [abs_norm_span_singleton, norm_eq, zero_mul, zero_add, zero_pow' 2 (by norm_num),
         zero_sub, int.nat_abs_neg, int.coe_nat_dvd_left] },
-  -- Similarly `(y + √ d)` is in the supremum, so the norms divide each other.
-  have hyd : ((gcd I J).absolute_norm : ℤ) ∣ y^2 - d,
-  { refine (int.coe_nat_dvd.mpr (map_dvd ideal.absolute_norm (gcd_dvd_left I J))).trans _,
-    simp only [absolute_norm_span_singleton, zero_mul, add_zero,
+  -- Similarly `(y + √d)` is in the supremum, so the norms divide each other.
+  { show ((gcd I J).abs_norm : ℤ) ∣ y^2 - d,
+    refine (int.coe_nat_dvd.mpr (map_dvd ideal.abs_norm (gcd_dvd_left I J))).trans _,
+    simp only [abs_norm_span_singleton, zero_mul, add_zero,
       norm_eq, one_pow, mul_one, int.coe_nat_dvd_left] },
-
-  -- Because the norm is coprime to 2, we conclude that it divides d and therefore it divides y.
-  have h2 : is_coprime ((gcd I J).absolute_norm : ℤ) 2,
-  { refine (int.prime_two.coprime_iff_not_dvd.mpr _).symm,
-    intros h,
-    have : ¬ even (y ^ 2 - d),
-    { have hodd : ¬ even x,
-      { cases _inst_1.out with hm hm,
-        { exact x_odd_two hm h_eqn, },
-        { exact x_odd_three hm h_eqn, } },
-      simp only [h_eqn, hodd, not_false_iff, false_and] with parity_simps, },
-    exact this (even_iff_two_dvd.mpr (h.trans hyd)) },
-  have hd : ((gcd I J).absolute_norm : ℤ) ∣ d := h2.pow_right.dvd_of_dvd_mul_right hd4,
-  have hy : ((gcd I J).absolute_norm : ℤ) ∣ y^2 := (dvd_sub_left hd).mp hyd,
-
-  -- So it remains to show `d` and `y` are coprime.
-  refine (is_coprime.pow_right _).is_unit_of_dvd' hd hy,
-  -- We'll show that `(gcd d y)^2 ∣ d`, and since `d` is squarefree, conclude `gcd d y` is a unit.
-  -- Here the original proof goes to `zmod (gcd |d| |y|)`. We avoid the absolute values and
-  -- coercions into `zmod` by working only with divisibility.
-  rw ← gcd_is_unit_iff,
-  refine fact.out (squarefree d) _ _,
-  -- `(gcd d y)^2 ∣ y^2`, so we can show it divides the difference, which is equal to `x^3`.
-  rw [← pow_two, ← dvd_sub_right (pow_dvd_pow_of_dvd (gcd_dvd_right d y) _), h_eqn],
-  -- `(gcd d y)^2 ∣ x^3` if `gcd d y` divides `x`.
-  refine (pow_dvd_pow_of_dvd _ _).trans (pow_dvd_pow x (by norm_num)),
-  -- Since `gcd d y` is squarefree, this is indeed the case because it divides `x^3 = y^2 - d`.
-  rw [← unique_factorization_monoid.dvd_pow_iff_dvd_of_squarefree, ← h_eqn, dvd_sub_left],
-  { exact (gcd_dvd_right d y).trans (dvd_pow_self _ (by norm_num)) },
-  { exact gcd_dvd_left d y },
-  { exact squarefree_gcd_of_squarefree_left (fact.out _) },
-  { norm_num },
 end
 
--- TODO deduplicate this proof with previous, the last half is shared
--- TODO fix the comments
-lemma gcd_lemma' {x y : ℤ} {d : ℤ} [fact $ d % 8 = 5] [fact $ d % 4 = 1]
+lemma gcd_lemma' {x y : ℤ} {d : ℤ} (h8 : d % 8 = 5)
   [fact $ squarefree d] [fact $ ¬ is_square d] (h_eqn : y ^ 2 - d = x ^ 3) :
+  by haveI : fact (d % 4 = 1) := fact.mk (by apply_fun (% 4) at h8; norm_num [int.mod_mod_of_dvd] at h8; assumption); exact
   gcd (ideal.span {⟨y - 1, 2⟩} : ideal (quad_ring ℤ 1 ((d - 1) / 4))) (ideal.span {⟨y + 1, -2⟩}) = 1 :=
 begin
-  -- Let I and J be ⟨y + √ d⟩ and ⟨y - √ d⟩ respectively.
+  haveI : fact (d % 4 = 1) := fact.mk (by apply_fun (% 4) at h8; norm_num [int.mod_mod_of_dvd] at h8; assumption),
+  -- Let I and J be ⟨y - 1 + 2√d⟩ and ⟨y + 1 - 2√d⟩ respectively.
   set I := (ideal.span {⟨y - 1, 2⟩} : ideal (quad_ring ℤ 1 ((d - 1) / 4))),
   set J := (ideal.span {⟨y + 1, -2⟩} : ideal (quad_ring ℤ 1 ((d - 1) / 4))),
   -- We will show `gcd I J = I ⊔ J = 1` by showing its norm is a unit,
   -- because it divides both `d` and `y`, and those are coprime.
-  rw [one_eq_top, ← absolute_norm_eq_one_iff_eq_top, ← int.is_unit_coe_nat],
+  rw [one_eq_top, ← abs_norm_eq_one_iff, ← int.is_unit_coe_nat],
 
-  -- `(y + √ d) - (y - √ d) = 2 √ d` is in the supremum, so the norms divide each other.
-  have hd4 : (absolute_norm (gcd I J) : ℤ) ∣ d * 2^2,
-  { have : gcd I J ∣ span ({⟨-2, 4⟩} : set (quad_ring ℤ 1 ((d - 1) / 4))),
+  haveI := fact.mk h8,
+  refine is_unit_of_dvd_four_mul_d_of_dvd_y_sq_sub_d h_eqn _ _,
+
+  -- `(y - 1 + 2√d) - (y + 1 - 2√d) = -2 + 4 √d` is in the supremum, so the norms divide each other.
+  { show (abs_norm (gcd I J) : ℤ) ∣ d * 2^2,
+    have : gcd I J ∣ span ({⟨-2, 4⟩} : set (quad_ring ℤ 1 ((d - 1) / 4))),
     { rw [gcd_eq_sup, dvd_span_singleton],
       convert submodule.sub_mem_sup
         (submodule.mem_span_singleton_self _) (submodule.mem_span_singleton_self _) using 1,
       calc_tac },
-    refine (int.coe_nat_dvd.mpr (map_dvd ideal.absolute_norm this)).trans _,
-    simp only [absolute_norm_span_singleton, norm_eq, zero_mul, zero_add,
+    refine (int.coe_nat_dvd.mpr (map_dvd ideal.abs_norm this)).trans _,
+    simp only [abs_norm_span_singleton, norm_eq, zero_mul, zero_add,
         zero_pow' 2 (by norm_num), zero_sub, int.nat_abs_neg, int.coe_nat_dvd_left,
-        int.nat_abs, absolute_norm_span_singleton, norm_eq, neg_sq, mul_neg,
+        int.nat_abs, abs_norm_span_singleton, norm_eq, neg_sq, mul_neg,
         one_mul, neg_mul, int.nat_abs_dvd_iff_dvd],
     norm_num,
     rw show -4 - (d - 1) / 4 * 16 = -4 * (4 * ((d - 1) / 4) + 1), by ring,
     rw d_one_mod_four_fact,
     rw mul_comm,
     simp, },
-  -- Similarly `(y + √ d)` is in the supremum, so the norms divide each other.
-  have hyd : ((gcd I J).absolute_norm : ℤ) ∣ y^2 - d,
-  { refine (int.coe_nat_dvd.mpr (map_dvd ideal.absolute_norm (gcd_dvd_left I J))).trans _,
-    simp only [absolute_norm_span_singleton, norm_eq,
+  -- Similarly `(y - 1 + 2√d)` is in the supremum, so the norms divide each other.
+  { show ((gcd I J).abs_norm : ℤ) ∣ y^2 - d,
+    refine (int.coe_nat_dvd.mpr (map_dvd ideal.abs_norm (gcd_dvd_left I J))).trans _,
+    simp only [abs_norm_span_singleton, norm_eq,
       int.coe_nat_dvd_left, one_mul, int.nat_abs_dvd_iff_dvd],
     ring_nf,
     rw [← neg_add', d_one_mod_four_fact, sub_eq_add_neg], },
-
-  -- Because the norm is coprime to 2, we conclude that it divides d and therefore it divides y.
-  have h2 : is_coprime ((gcd I J).absolute_norm : ℤ) 2,
-  { refine (int.prime_two.coprime_iff_not_dvd.mpr _).symm,
-    intros h,
-    have : ¬ even (y ^ 2 - d),
-    { have hodd : ¬ even x := x_odd_five (fact.out _) h_eqn,
-      simp only [h_eqn, hodd, not_false_iff, false_and] with parity_simps, },
-    exact this (even_iff_two_dvd.mpr (h.trans hyd)) },
-  have hd : ((gcd I J).absolute_norm : ℤ) ∣ d := h2.pow_right.dvd_of_dvd_mul_right hd4,
-  have hy : ((gcd I J).absolute_norm : ℤ) ∣ y^2 := (dvd_sub_left hd).mp hyd,
-  -- So it remains to show `d` and `y` are coprime.
-  refine (is_coprime.pow_right _).is_unit_of_dvd' hd hy,
-  -- We'll show that `(gcd d y)^2 ∣ d`, and since `d` is squarefree, conclude `gcd d y` is a unit.
-  -- Here the original proof goes to `zmod (gcd |d| |y|)`. We avoid the absolute values and
-  -- coercions into `zmod` by working only with divisibility.
-  rw ← gcd_is_unit_iff,
-  refine fact.out (squarefree d) _ _,
-  -- `(gcd d y)^2 ∣ y^2`, so we can show it divides the difference, which is equal to `x^3`.
-  rw [← pow_two, ← dvd_sub_right (pow_dvd_pow_of_dvd (gcd_dvd_right d y) _), h_eqn],
-  -- `(gcd d y)^2 ∣ x^3` if `gcd d y` divides `x`.
-  refine (pow_dvd_pow_of_dvd _ _).trans (pow_dvd_pow x (by norm_num)),
-  -- Since `gcd d y` is squarefree, this is indeed the case because it divides `x^3 = y^2 - d`.
-  rw [← unique_factorization_monoid.dvd_pow_iff_dvd_of_squarefree, ← h_eqn, dvd_sub_left],
-  { exact (gcd_dvd_right d y).trans (dvd_pow_self _ (by norm_num)) },
-  { exact gcd_dvd_left d y },
-  { exact squarefree_gcd_of_squarefree_left (fact.out _) },
-  { norm_num },
 end
-
 
 open_locale non_zero_divisors
 
@@ -226,8 +202,8 @@ lemma factor_y_sq_sub_d_one (d : ℤ) [fact $ d % 4 = 1] (y : ℤ) :
   (y^2 - d : quad_ring ℤ 1 ((d - 1) / 4)) = ⟨y - 1, 2⟩ * ⟨y + 1, -2⟩ :=
 by {calc_tac, rw [← neg_add', d_one_mod_four_fact, sub_eq_add_neg]}
 
-/-- An integer solution to the Mordell equation `y^2 = x^3 + d`, if `¬(3 ∣ k(ℚ(√ d)))`,
-implies a third root of `y + √ d` exists. -/
+/-- An integer solution to the Mordell equation `y^2 = x^3 + d`, if `¬(3 ∣ k(ℚ(√d)))`,
+implies a third root of `y + √d` exists. -/
 lemma exists_third_root_y_add_root (d : ℤ) (d' : ℚ) (hd : d ≤ -1)
   [fact (d % 4 = 2 ∨ d % 4 = 3)]
   [fact (squarefree d)]
@@ -235,108 +211,56 @@ lemma exists_third_root_y_add_root (d : ℤ) (d' : ℚ) (hd : d ≤ -1)
   [fact $ ¬ is_square d] [fact $ ¬ is_square d']
   (hcl : (number_field.class_number (quad_ring ℚ 0 d')).gcd 3 = 1)
   (x y : ℤ) (h_eqn : y ^ 2 = x ^ 3 + d) :
-  ∃ z : ℤ[√ d], z^3 = ⟨y, 1⟩ :=
+  ∃ z : ℤ[√d], z^3 = ⟨y, 1⟩ :=
 begin
   rw nat.gcd_comm at hcl,
   rw ← sub_eq_iff_eq_add at h_eqn,
   have : (x^3 : quad_ring ℤ 0 d) = ⟨y, 1⟩ * ⟨y, -1⟩,
   { refine trans _ (factor_y_sq_sub_d d y),
     exact_mod_cast h_eqn.symm },
-  -- Since `⟨y - √ d⟩` and `⟨y + √ d⟩` are coprime, and `⟨y - √ d⟩⟨y + √ d⟩ = ⟨x⟩^3`,
-  -- we have a third root `I` of `⟨y + √ d⟩`.
+  -- Since `⟨y - √d⟩` and `⟨y + √d⟩` are coprime, and `⟨y - √d⟩⟨y + √d⟩ = ⟨x⟩^3`,
+  -- we have a third root `I` of `⟨y + √d⟩`.
   obtain ⟨I, hI⟩ : ∃ I : ideal (quad_ring ℤ 0 d),
     (ideal.span {⟨y, 1⟩} : ideal (quad_ring ℤ 0 d)) = I ^ 3,
   { have unit_gcd : is_unit (gcd (span ({⟨y, 1⟩} : set (quad_ring ℤ 0 d))) (span {⟨y, -1⟩})),
     { simpa using gcd_lemma h_eqn, },
-    refine exists_eq_pow_of_mul_eq_pow unit_gcd (show _ = (span ({x} : set ℤ[√ d]))^3, from _),
+    refine exists_eq_pow_of_mul_eq_pow unit_gcd (show _ = (span ({x} : set ℤ[√d]))^3, from _),
     rw [ideal.span_singleton_mul_span_singleton, ideal.span_singleton_pow, this] },
   -- The class group does not contain an element of an element of order three,
-  -- and `I^3 = ⟨y + √ d⟩` is principal, so `I` is principal.
+  -- and `I^3 = ⟨y + √d⟩` is principal, so `I` is principal.
   obtain ⟨z, rfl⟩ : ∃ z, I = ideal.span {z},
-  { have hIn : I ∈ (ideal ℤ[√ d])⁰,
+  { have hIn : I ∈ (ideal ℤ[√d])⁰,
     { rw mem_non_zero_divisors_iff_ne_zero,
       rintro rfl,
       rw [zero_pow, ideal.zero_eq_bot, ideal.span_singleton_eq_bot, quad_ring.ext_iff] at hI,
       { simpa using hI },
       { norm_num } },
-    suffices : (class_group.mk0 ℚ(√ d')) ⟨I, hIn⟩ = 1,
+    suffices : class_group.mk0 ⟨I, hIn⟩ = 1,
     { exact ((class_group.mk0_eq_one_iff hIn).mp this).1 },
-    -- In particular, `1 = I^3 = I^(gcd k(ℚ(√ d)) 3) = I^1`.
-    rw [← pow_one (class_group.mk0 _ _), ← hcl,
+    -- In particular, `1 = I^3 = I^(gcd k(ℚ(√d)) 3) = I^1`.
+    rw [← pow_one (class_group.mk0 _), ← hcl,
         number_field.class_number_eq (quad_ring ℤ 0 d) (quad_ring ℚ 0 d'),
         ← pow_gcd_card_eq_one_iff, ← map_pow, submonoid_class.mk_pow I hIn],
     refine (class_group.mk0_eq_one_iff _).mpr _,
     rw ← hI,
     exact span.submodule.is_principal },
-  -- Therefore, we have ⟨z⟩^3 = ⟨y + √ d⟩, so `z^3` and `y + √ d` are equal up to units.
+  -- Therefore, we have ⟨z⟩^3 = ⟨y + √d⟩, so `z^3` and `y + √d` are equal up to units.
   rw [ideal.span_singleton_pow, ideal.span_singleton_eq_span_singleton] at hI,
   rcases hI with ⟨u, hu⟩,
-  -- Every unit in `ℤ[√ d]` has a third root, so we find a unit v with (z * v)^3 = y + √ d.
+  -- Every unit in `ℤ[√d]` has a third root, so we find a unit v with (z * v)^3 = y + √d.
   rcases units_quad_cubes hd u with ⟨v, rfl⟩,
   use z * ↑(v⁻¹),
   rw [mul_pow, ← hu, ← units.coe_pow, inv_pow, units.mul_inv_cancel_right]
 end
 
--- /-- An integer solution to the Mordell equation `y^2 = x^3 + d`, if `¬(3 ∣ k(ℚ(√ d)))`,
--- implies a third root of `y + √ d` exists. -/
--- lemma exists_third_root_y_add_root' (d : ℤ) (d' : ℚ) (hd : d ≤ -1)
---   [fact (d % 8 = 5)]
---   [fact (squarefree d)]
---   [hdd' : fact $ algebra_map ℤ ℚ d = d']
---   [fact $ ¬ is_square d] [fact $ ¬ is_square d']
---   -- (hcl : (number_field.class_number (quad_ring ℚ 1 ((d - 1) / 4))).gcd 3 = 1)
---   (x y : ℤ) (h_eqn : y ^ 2 = x ^ 3 + d) :
---   ∃ z : ℤ[√ d], z^3 = ⟨y, 1⟩ :=
--- begin
---   haveI : fact (d % 4 = 1), sorry,
---   -- rw nat.gcd_comm at hcl,
---   rw ← sub_eq_iff_eq_add at h_eqn,
---   have : (x^3 : quad_ring ℤ 1 ((d - 1) / 4)) = ⟨y - 1, 2⟩ * ⟨y + 1, -2⟩,
---   { refine trans _ (factor_y_sq_sub_d_one d y),
---     exact_mod_cast h_eqn.symm },
---   -- Since `⟨y - √ d⟩` and `⟨y + √ d⟩` are coprime, and `⟨y - √ d⟩⟨y + √ d⟩ = ⟨x⟩^3`,
---   -- we have a third root `I` of `⟨y + √ d⟩`.
---   obtain ⟨I, hI⟩ : ∃ I : ideal (quad_ring ℤ 1 ((d-1)/4)),
---     (ideal.span {⟨y - 1, 2⟩} : ideal (quad_ring ℤ 1 ((d-1)/4))) = I ^ 3,
---   { have unit_gcd : is_unit (gcd (span ({⟨y - 1, 2⟩} : set (quad_ring ℤ 1 ((d-1)/4)))) (span {⟨y + 1, -2⟩})),
---     { simpa using gcd_lemma' h_eqn, },
---     refine exists_eq_pow_of_mul_eq_pow unit_gcd (show _ = (span ({x} : set (quad_ring ℤ 1 ((d - 1) / 4))))^3, from _),
---     rw [ideal.span_singleton_mul_span_singleton, ideal.span_singleton_pow, this] },
---   -- The class group does not contain an element of an element of order three,
---   -- and `I^3 = ⟨y + √ d⟩` is principal, so `I` is principal.
---   obtain ⟨z, rfl⟩ : ∃ z, I = ideal.span {z},
---   { have hIn : I ∈ (ideal (quad_ring ℤ 1 ((d - 1) / 4)))⁰,
---     { rw mem_non_zero_divisors_iff_ne_zero,
---       rintro rfl,
---       rw [zero_pow, ideal.zero_eq_bot, ideal.span_singleton_eq_bot, quad_ring.ext_iff] at hI,
---       { simpa using hI },
---       { norm_num } },
---     suffices : (class_group.mk0 ℚ(√ d')) ⟨I, hIn⟩ = 1,
---     { exact ((class_group.mk0_eq_one_iff hIn).mp this).1 },
---     -- In particular, `1 = I^3 = I^(gcd k(ℚ(√ d)) 3) = I^1`.
---     rw [← pow_one (class_group.mk0 _ _), ← hcl,
---         number_field.class_number_eq (quad_ring ℤ 0 d) (quad_ring ℚ 0 d'),
---         ← pow_gcd_card_eq_one_iff, ← map_pow, submonoid_class.mk_pow I hIn],
---     refine (class_group.mk0_eq_one_iff _).mpr _,
---     rw ← hI,
---     exact span.submodule.is_principal },
---   -- Therefore, we have ⟨z⟩^3 = ⟨y + √ d⟩, so `z^3` and `y + √ d` are equal up to units.
---   rw [ideal.span_singleton_pow, ideal.span_singleton_eq_span_singleton] at hI,
---   rcases hI with ⟨u, hu⟩,
---   -- Every unit in `ℤ[√ d]` has a third root, so we find a unit v with (z * v)^3 = y + √ d.
---   rcases units_quad_cubes hd u with ⟨v, rfl⟩,
---   use z * ↑(v⁻¹),
---   rw [mul_pow, ← hu, ← units.coe_pow, inv_pow, units.mul_inv_cancel_right]
--- end
-
-/-- An integer solution to the Mordell equation `y^2 = x^3 + d`, if `¬(3 ∣ k(ℚ(√ d)))`,
+/-- An integer solution to the Mordell equation `y^2 = x^3 + d`, if `¬(3 ∣ k(ℚ(√d)))`,
 has `y = 3dm + m^3`, where `m : ℤ` is such that `m^2 = (-d ± 1)/3`. -/
 theorem Mordell_d (d : ℤ) (d' : ℚ) (hd : d ≤ -1)
   [fact (d % 4 = 2 ∨ d % 4 = 3)]
   [fact (squarefree d)]
   [hdd' : fact $ algebra_map ℤ ℚ d = d']
   [fact $ ¬ is_square d']
-  (hcl : (number_field.class_number ℚ(√ d')).gcd 3 = 1)
+  (hcl : (number_field.class_number ℚ(√d')).gcd 3 = 1)
   (x y : ℤ) (h_eqn : y ^ 2 = x ^ 3 + d) :
   ∃ m : ℤ, ((m : ℚ) ^ 2 = (1 - d) / 3 ∨ -(m : ℚ) ^ 2 = (1 + d) / 3) ∧ ↑y = m * (d * 3 + m ^ 2)
   :=
@@ -368,10 +292,7 @@ end
 lemma Mordell_contra {R : Type*} [comm_ring R] (d m : R)
   (hd : d = 1 - 3 * m ^ 2 ∨ d = - 1 - 3 * m ^ 2) :
   (m * (d * 3 + m ^ 2)) ^ 2 = (m ^ 2 - d) ^ 3 + d :=
-begin
-  rcases hd with rfl | rfl;
-  ring,
-end
+by rcases hd with rfl | rfl; ring
 
 -- local insolubility if:
 -- (hd9 : ↑d ∈ ({0,2,3,4,5,6,8} : set (zmod 9)))
@@ -504,15 +425,6 @@ begin
     norm_num at h; [left, right];
     assumption, },
 end
-
--- theorem Mordell_minus17 (x y : ℤ) : ¬ y^2 = x^3 - 17 :=
--- begin
---   haveI : fact ((-17 : ℤ) % 4 = 3) := fact.mk (by norm_num),
---   haveI : fact (squarefree (-17 : ℤ)) := fact.mk (by norm_num [int.squarefree_iff_squarefree_nat_abs]),
---   haveI : fact (algebra_map ℤ ℚ (-17 : ℤ) = -17) := fact.mk (by norm_num),
---   haveI : fact (¬ is_square (-17 : ℚ)) := fact.mk (λ h, (by norm_num : ¬ (0 : ℚ) ≤ (-17)) h.nonneg), -- TODO should be easier
---   exact Mordell_d (-17) (-17) (by norm_num) sorry (by norm_num; dec_trivial) (by norm_num; dec_trivial) x y,
--- end
 
 #print axioms Mordell_minus1
 #print axioms Mordell_minus2

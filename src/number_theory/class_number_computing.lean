@@ -1,10 +1,10 @@
 import data.nat.squarefree
 import data.int.sqrt
-import number_theory.class_number.number_field
+import number_theory.number_field.class_number
 import number_theory.quad_ring.basic
 
 /-!
-# Showing the class group of `ℤ[√ d]` is nontrivial
+# Showing the class group of `ℤ[√d]` is nontrivial
 -/
 
 open_locale non_zero_divisors
@@ -51,81 +51,6 @@ end
 lemma ideal.span_eq_span_iff {R : Type*} [comm_ring R]
   {s t : set R} : ideal.span s = ideal.span t ↔ s ⊆ ideal.span t ∧ t ⊆ ideal.span s :=
 le_antisymm_iff.trans (by simp only [ideal.span_le])
-
-@[simp] lemma subgroup.comap_id {G : Type*} [group G] (G' : subgroup G) :
-  subgroup.comap (monoid_hom.id _) G' = G' :=
-by { ext, refl }
-
-@[simp] lemma quotient_group.map_id_apply {G : Type*} [group G] (G' : subgroup G) [G'.normal]
-  (h : G' ≤ subgroup.comap (monoid_hom.id _) G' := (subgroup.comap_id G').le) (x) :
-  quotient_group.map G' G' (monoid_hom.id _) h x = x :=
-begin
-  refine quotient_group.induction_on' x (λ x, _),
-  simp only [quotient_group.map_coe, monoid_hom.id_apply]
-end
-
-@[simp] lemma quotient_group.map_id {G : Type*} [group G] (G' : subgroup G) [G'.normal]
-  (h : G' ≤ subgroup.comap (monoid_hom.id _) G' := (subgroup.comap_id G').le) :
-  quotient_group.map G' G' (monoid_hom.id _) h = monoid_hom.id _ :=
-monoid_hom.ext (quotient_group.map_id_apply G' h)
-
-@[simp] lemma quotient_group.map_map {G H I : Type*} [group G] [group H] [group I]
-  (G' : subgroup G) (H' : subgroup H) (I' : subgroup I)
-  [G'.normal] [H'.normal] [I'.normal]
-  (f : G →* H) (g : H →* I) (hf : G' ≤ subgroup.comap f H') (hg : H' ≤ subgroup.comap g I')
-  (hgf : G' ≤ subgroup.comap (g.comp f) I' :=
-    hf.trans ((subgroup.comap_mono hg).trans_eq (subgroup.comap_comap _ _ _))) (x : G ⧸ G') :
-  quotient_group.map H' I' g hg (quotient_group.map G' H' f hf x) =
-    quotient_group.map G' I' (g.comp f) hgf x :=
-begin
-  refine quotient_group.induction_on' x (λ x, _),
-  simp only [quotient_group.map_coe, monoid_hom.comp_apply]
-end
-
-@[simp] lemma quotient_group.map_comp_map {G H I : Type*} [group G] [group H] [group I]
-  (G' : subgroup G) (H' : subgroup H) (I' : subgroup I)
-  [G'.normal] [H'.normal] [I'.normal]
-  (f : G →* H) (g : H →* I) (hf : G' ≤ subgroup.comap f H') (hg : H' ≤ subgroup.comap g I')
-  (hgf : G' ≤ subgroup.comap (g.comp f) I' :=
-    hf.trans ((subgroup.comap_mono hg).trans_eq (subgroup.comap_comap _ _ _))) :
-  (quotient_group.map H' I' g hg).comp (quotient_group.map G' H' f hf) =
-    quotient_group.map G' I' (g.comp f) hgf :=
-monoid_hom.ext (quotient_group.map_map G' H' I' f g hf hg hgf)
-
-@[simp]
-lemma mul_equiv.coe_monoid_hom_refl {M : Type*} [monoid M] :
-  (mul_equiv.refl M : M →* M) = monoid_hom.id M :=
-rfl
-
-@[simp]
-lemma mul_equiv.coe_monoid_hom_trans {M N P : Type*} [monoid M] [monoid N] [monoid P]
-  (e₁ : M ≃* N) (e₂ : N ≃* P) :
-  (e₁.trans e₂ : M →* P) = (e₂ : N →* P).comp ↑e₁ :=
-rfl
-
-@[simp]
-lemma mul_equiv.self_trans_symm {M N : Type*} [monoid M] [monoid N] (e : M ≃* N) :
-  e.trans e.symm = mul_equiv.refl _ :=
-by { ext, exact e.symm_apply_apply _ }
-
-@[simp]
-lemma mul_equiv.symm_trans_self {M N : Type*} [monoid M] [monoid N] (e : M ≃* N) :
-  e.symm.trans e = mul_equiv.refl _ :=
-by { ext, exact e.apply_symm_apply _ }
-
-/-- `quotient_group.congr` lifts the isomorphism `e : G ≃ H` to `G ⧸ G' ≃ H ⧸ H'`,
-given that `e` maps `G` to `H`. -/
-def quotient_group.congr {G H : Type*} [group G] [group H] (G' : subgroup G) (H' : subgroup H)
-  [G'.normal] [H'.normal] (e : G ≃* H) (he : G'.map ↑e = H') : G ⧸ G' ≃* H ⧸ H' :=
-{ to_fun := quotient_group.map G' H' ↑e (he ▸ G'.le_comap_map e),
-  inv_fun := quotient_group.map H' G' ↑e.symm (he ▸ (G'.map_equiv_eq_comap_symm e).le),
-  left_inv := λ x, by rw quotient_group.map_map; -- `simp` doesn't like this lemma...
-    simp only [← mul_equiv.coe_monoid_hom_trans, mul_equiv.self_trans_symm,
-        mul_equiv.coe_monoid_hom_refl, quotient_group.map_id_apply],
-  right_inv := λ x, by rw quotient_group.map_map; -- `simp` doesn't like this lemma...
-    simp only [← mul_equiv.coe_monoid_hom_trans, mul_equiv.symm_trans_self,
-        mul_equiv.coe_monoid_hom_refl, quotient_group.map_id_apply],
-  .. quotient_group.map G' H' ↑e (he ▸ G'.le_comap_map e) }
 
 /-- `is_localization.map` bundled as a semilinear map. -/
 @[simps]
@@ -260,6 +185,7 @@ noncomputable def fractional_ideal.map_base {R S Rₘ Sₙ : Type*} [comm_ring R
     apply is_localization.map_semilinear_mul
   end }
 
+section
 universes u v u' v'
 /-- If `e : R ≃+* S` maps `M : submonoid R` to `N : submonoid S`, then the fractional ideals
 at `M` are isomorphic to those at `N`. -/
@@ -321,10 +247,11 @@ noncomputable def fractional_ideal.congr {R : Type u} {S : Type v} (Rₘ : Type 
     ... = linear_map.id x : (linear_map.id_apply x).symm
   end,
   .. fractional_ideal.map_base M N e e.surjective _ }
+end
 
 -- TODO: the existence of this instance helps the elaborator unify quotient_group.group with comm_group.to_group
-instance (R K : Type*) [comm_ring R] [field K] [algebra R K] [is_fraction_ring R K] :
-  group (class_group R K) := quotient_group.quotient.group _
+noncomputable instance (R : Type*) [comm_ring R] [is_domain R] :
+  group (class_group R) := quotient_group.quotient.group _
 
 @[simp] lemma map_non_zero_divisors {R S : Type*} [comm_ring R] [is_domain R] [comm_ring S] [is_domain S]
   (e : R ≃+* S) : submonoid.map e R⁰ = S⁰ :=
@@ -357,22 +284,23 @@ begin
   refl
 end
 
-/-- The class group of `R` in `K` is isomorphic to that of `S` in `L`,
-if `R` is isomorphic to `S`. -/
-noncomputable def class_group.equiv {R : Type u} {S : Type v} (K : Type u') (L : Type v')
+universes u v
+
+/-- The class group of `R` is isomorphic to that of `S`, if `R` is isomorphic to `S`. -/
+noncomputable def class_group.congr {R : Type u} {S : Type v}
   [comm_ring R] [is_domain R] [comm_ring S] [is_domain S]
-  [field K] [field L] [algebra R K] [is_fraction_ring R K] [algebra S L] [is_fraction_ring S L]
-  (e : R ≃+* S) : class_group R K ≃* class_group S L :=
-quotient_group.congr (to_principal_ideal R K).range (to_principal_ideal S L).range
-  (units.map_equiv ↑(fractional_ideal.congr K L R⁰ S⁰ e (map_non_zero_divisors e))) $
+  (e : R ≃+* S) : class_group R ≃* class_group S :=
+quotient_group.congr (to_principal_ideal R (fraction_ring R)).range (to_principal_ideal S (fraction_ring S)).range
+  (units.map_equiv ↑(fractional_ideal.congr (fraction_ring R) (fraction_ring S) R⁰ S⁰ e (map_non_zero_divisors e))) $
   by { rw [monoid_hom.range_eq_map, subgroup.map_map, monoid_hom.range_eq_map],
        ext,
        simp only [subgroup.mem_map, subgroup.mem_top, exists_prop, true_and,
           monoid_hom.comp_apply],
-       let e' : K ≃* L := is_localization.ring_equiv_of_ring_equiv K L e (map_non_zero_divisors e),
+       let e' : fraction_ring R ≃* fraction_ring S := is_localization.ring_equiv_of_ring_equiv
+        (fraction_ring R) (fraction_ring S) e (map_non_zero_divisors e),
        split; rintro ⟨x, rfl⟩,
-       { exact ⟨units.map_equiv e' x, (units_map_equiv_congr_to_principal_ideal K L e x).symm⟩ },
-       { refine ⟨units.map_equiv e'.symm x, (units_map_equiv_congr_to_principal_ideal K L e _).trans _⟩,
+       { exact ⟨units.map_equiv e' x, (units_map_equiv_congr_to_principal_ideal _ _ e x).symm⟩ },
+       { refine ⟨units.map_equiv e'.symm x, (units_map_equiv_congr_to_principal_ideal _ _ e _).trans _⟩,
          congr, ext : 1,
          exact mul_equiv.apply_symm_apply _ x } }
 
@@ -382,16 +310,23 @@ section to_mathlib
 
 /-- The class number of a number field does not depend on a choice of ring of integers. -/
 theorem number_field.class_number_eq (R : Type*) (K : Type*) [comm_ring R] [is_domain R]
-  [field K] [algebra R K] [is_fraction_ring R K] [number_field K] [is_integral_closure R ℤ K] :
-  number_field.class_number K = @fintype.card (class_group R K)
-    (class_group.fintype_of_admissible_of_finite ℚ _ absolute_value.abs_is_admissible) :=
+  [field K] [algebra R K] [is_fraction_ring R K] [number_field K] [is_integral_closure R ℤ K]
+  [fintype (class_group R)] :
+  number_field.class_number K = fintype.card (class_group R) :=
 begin
-  letI : fintype (class_group R K) :=
-    class_group.fintype_of_admissible_of_finite ℚ _ absolute_value.abs_is_admissible,
   unfold number_field.class_number,
-  refine fintype.card_eq.mpr ⟨(class_group.equiv K K _).to_equiv⟩,
+  convert fintype.card_eq.mpr ⟨(class_group.congr _).to_equiv⟩,
   exact number_field.ring_of_integers.equiv _,
 end
+
+/-- The class number of a number field does not depend on a choice of ring of integers. -/
+theorem number_field.class_number_eq' (R : Type*) (K : Type*) [comm_ring R] [is_domain R]
+  [field K] [algebra R K] [is_fraction_ring R K] [number_field K] [is_integral_closure R ℤ K] :
+  number_field.class_number K = @fintype.card (class_group R)
+    (class_group.fintype_of_admissible_of_finite ℚ K absolute_value.abs_is_admissible) :=
+by letI : fintype (class_group R) :=
+  class_group.fintype_of_admissible_of_finite ℚ K absolute_value.abs_is_admissible;
+exact number_field.class_number_eq R K
 
 end to_mathlib
 
@@ -431,7 +366,7 @@ by rw [set.subset_singleton_iff_eq, not_or_distrib]
 lemma ideal.span_ne_bot_iff {α : Type*} [comm_semiring α] {S : set α} :
   ideal.span S ≠ ⊥ ↔ (S.nonempty ∧ S ≠ {0}) :=
 by simp only [ne.def, ideal.span_eq_bot_iff_subset, set.not_subset_singleton_iff,
-              ← set.ne_empty_iff_nonempty]
+              set.nonempty_iff_ne_empty]
 
 @[simp] lemma set.ne_singleton_of_ne {α : Type*} {s : set α} {x y : α}
   (hxs : x ∈ s) (hxy : x ≠ y) : s ≠ {y} :=
@@ -459,7 +394,7 @@ instance {b : ℚ} [fact $ ¬ is_square b] : number_field (quad_ring ℚ 0 b) :=
 
 end basic
 
-/-- The ideal `⟨2⟩` in ℤ[√ d] is a square if `d % 4 = 3`.  -/
+/-- The ideal `⟨2⟩` in ℤ[√d] is a square if `d % 4 = 3`.  -/
 lemma exists_sqrt_2_mod_three (d : ℤ) (hd : d % 4 = 3) :
   (ideal.span ({⟨1, 1⟩, 2} : set (quad_ring ℤ 0 d)))^2 = ideal.span {2} :=
 begin
@@ -492,7 +427,7 @@ begin
     ext; simp },
 end
 
-/-- The ideal `⟨2⟩` in ℤ[√ d] is a square if `d % 4 = 2`.  -/
+/-- The ideal `⟨2⟩` in ℤ[√d] is a square if `d % 4 = 2`.  -/
 lemma exists_sqrt_2_mod_two (d : ℤ) (hd : d % 4 = 2) :
   (ideal.span ({⟨0, 1⟩, 2} : set (quad_ring ℤ 0 d)))^2 = ideal.span {2} :=
 begin
@@ -544,7 +479,7 @@ begin
        ... ≤ x.b1^2 - d * x.b2^2 : by nlinarith }
 end
 
-/-- In `ℤ[√ d]`, if `d < -2`, the square root of the ideal ⟨2⟩ is not principal. -/
+/-- In `ℤ[√d]`, if `d < -2`, the square root of the ideal ⟨2⟩ is not principal. -/
 lemma not_principal_of_sq_eq_two {d : ℤ} (hd2 : d < -2)
   (I : ideal (quad_ring ℤ 0 d)) (h : I^2 = ideal.span {2}) :
   ¬ I.is_principal :=
@@ -579,16 +514,16 @@ not_principal_of_sq_eq_two hd2 _ (exists_sqrt_2_mod_two d hd)
  -- `d` is a free variable so this can't be an instance
 local attribute [instance] quad_ring.fact_not_square'_of_eq_two_or_three_mod_four
 
-/-- `sqrt_2` is the square root of the ideal `⟨2⟩` of `ℤ[√ d]`, when `d % 4 ∈ {2, 3}`. -/
+/-- `sqrt_2` is the square root of the ideal `⟨2⟩` of `ℤ[√d]`, when `d % 4 ∈ {2, 3}`. -/
 def sqrt_2 (d : ℤ) [hd : fact $ d % 4 = 2 ∨ d % 4 = 3] : (ideal (quad_ring ℤ 0 d))⁰ :=
 if d % 4 = 2 then
   ⟨ideal.span ({⟨0, 1⟩, 2} : set (quad_ring ℤ 0 d)),
     mem_non_zero_divisors_of_ne_zero (ideal.span_ne_bot_iff.mpr ⟨set.insert_nonempty _ _,
-      set.ne_singleton_of_ne (set.mem_insert_of_mem _ (set.mem_singleton 2)) two_ne_zero'⟩)⟩
+      set.ne_singleton_of_ne (set.mem_insert_of_mem _ (set.mem_singleton 2)) two_ne_zero⟩)⟩
 else
   ⟨ideal.span ({⟨1, 1⟩, 2} : set (quad_ring ℤ 0 d)),
     mem_non_zero_divisors_of_ne_zero (ideal.span_ne_bot_iff.mpr ⟨set.insert_nonempty _ _,
-      set.ne_singleton_of_ne (set.mem_insert_of_mem _ (set.mem_singleton 2)) two_ne_zero'⟩)⟩
+      set.ne_singleton_of_ne (set.mem_insert_of_mem _ (set.mem_singleton 2)) two_ne_zero⟩)⟩
 
 lemma sqrt_2_pow_two (d : ℤ) [hd : fact $ d % 4 = 2 ∨ d % 4 = 3] :
   ((sqrt_2 d)^2 : ideal (quad_ring ℤ 0 d)) = ideal.span {2} :=
@@ -599,17 +534,16 @@ begin
   { simp [exists_sqrt_2_mod_three d (hd.out.resolve_left h)], },
 end
 
-/-- `class_group.sqrt_2` is the square root of `⟨2⟩` in the ideal class group of `ℚ(√ d')`,
+/-- `class_group.sqrt_2` is the square root of `⟨2⟩` in the ideal class group of `ℚ(√d')`,
 when `d % 4 ∈ {2, 3}`. -/
-protected noncomputable def class_group.sqrt_2 (d : ℤ) (d' : ℚ) [fact (algebra_map ℤ ℚ d = d')]
+protected noncomputable def class_group.sqrt_2 (d : ℤ)
   [hd : fact $ d % 4 = 2 ∨ d % 4 = 3] [fact $ squarefree d] :
-  class_group (quad_ring ℤ 0 d) (quad_ring ℚ 0 d') :=
-class_group.mk0 _ (sqrt_2 d)
+  class_group (quad_ring ℤ 0 d) :=
+class_group.mk0 (sqrt_2 d)
 
 -- TODO a version of this for d = -2 and -1 saying that the order is 1
-lemma order_of_sqrt2 {d : ℤ} (d' : ℚ) [fact (algebra_map ℤ ℚ d = d')]
-  [hd : fact $ d % 4 = 2 ∨ d % 4 = 3] [fact $ squarefree d]
-  (hd2 : d < -2) : order_of (class_group.sqrt_2 d d') = 2 :=
+lemma order_of_sqrt2 {d : ℤ} [hd : fact $ d % 4 = 2 ∨ d % 4 = 3] [fact $ squarefree d]
+  (hd2 : d < -2) : order_of (class_group.sqrt_2 d) = 2 :=
 begin
   refine order_of_eq_prime _ _,
   { rw [class_group.sqrt_2, sqrt_2],
@@ -632,9 +566,10 @@ theorem two_dvd_class_number (d : ℤ) (d' : ℚ) [hd : fact $ d % 4 = 2 ∨ d %
   (hd2 : d < -2) [hdd' : fact $ algebra_map ℤ ℚ d = d'] :
   2 ∣ number_field.class_number (quad_ring ℚ 0 d') :=
 begin
-  letI : fintype (class_group (quad_ring ℤ 0 d) (quad_ring ℚ 0 d')) :=
-    class_group.fintype_of_admissible_of_finite ℚ _ absolute_value.abs_is_admissible,
-  rw [← order_of_sqrt2 d' hd2, number_field.class_number_eq (quad_ring ℤ 0 d) (quad_ring ℚ 0 d')],
+  letI : fintype (class_group (quad_ring ℤ 0 d)) :=
+    class_group.fintype_of_admissible_of_finite ℚ (quad_ring ℚ 0 d')
+      absolute_value.abs_is_admissible,
+  rw [← order_of_sqrt2 hd2, number_field.class_number_eq (quad_ring ℤ 0 d) (quad_ring ℚ 0 d')],
   exact order_of_dvd_card_univ,
 end
 
@@ -642,15 +577,15 @@ instance : fact $ ¬ is_square (-5 : ℤ) :=
 ⟨(int.prime_iff_nat_abs_prime.mpr $ by norm_num).irreducible.not_is_square⟩
 
 theorem class_group_nontrivial :
-  nontrivial (class_group (quad_ring ℤ 0 (-5)) (quad_ring ℚ 0 (-5))) :=
+  nontrivial (class_group (quad_ring ℤ 0 (-5))) :=
 begin
   haveI : fact (algebra_map ℤ ℚ (-5) = (-5)) := ⟨by simp⟩,
   haveI : fact ((-5 : ℤ) % 4 = 2 ∨ (-5 : ℤ) % 4 = 3) := ⟨by norm_num⟩,
   haveI : fact (squarefree (-5 : ℤ)) := ⟨by norm_num [int.squarefree_iff_squarefree_nat_abs]⟩,
   haveI : is_dedekind_domain (quad_ring ℤ 0 (-5)) :=
     is_integral_closure.is_dedekind_domain ℤ ℚ (quad_ring ℚ 0 (-5)) _,
-  letI : fintype (class_group (quad_ring ℤ 0 (-5)) (quad_ring ℚ 0 (-5))) :=
-    class_group.fintype_of_admissible_of_finite ℚ _ absolute_value.abs_is_admissible,
+  letI : fintype (class_group (quad_ring ℤ 0 (-5))) :=
+    class_group.fintype_of_admissible_of_finite ℚ (quad_ring ℚ 0 (-5)) absolute_value.abs_is_admissible,
   rw [← fintype.one_lt_card_iff_nontrivial,
       ← number_field.class_number_eq (quad_ring ℤ 0 (-5)) (quad_ring ℚ 0 (-5))],
   have := nat.le_of_dvd _ (two_dvd_class_number (-5) (-5) (by norm_num)),

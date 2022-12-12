@@ -20,11 +20,14 @@ After installation, you can run the following commands to set up the dependencie
 cd path/to/class-group-and-mordell-equation
 leanpkg configure
 leanproject get-mathlib-cache
+lean --make src
 code .
 ```
 
 When opening a Lean project in VS Code, you must use the "Open Folder" menu option to open the project's root directory.
 On the command line, you can run `code path/to/class-group-and-mordell-equation`.
+
+The step `lean --make src` precompiles our source files. Although this step is not strictly needed it improves the editing experience, especially on systems with less memory.
 
 ## File structure
 

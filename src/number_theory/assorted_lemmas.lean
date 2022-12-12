@@ -66,68 +66,6 @@ end
 
 end pow_zmod_int
 
-/-! # gcd = sup for dedekind -/
-section dedekind_gcd_eq_sup
-
-namespace ideal
-
-section
-
-open_locale classical
-
-@[simp] lemma sup_mul_inf {D : Type*} [comm_ring D] [is_domain D] [is_dedekind_domain D]
-  (I J : ideal D) : (I ⊔ J) * (I ⊓ J) = I * J :=
-begin
-  letI := unique_factorization_monoid.to_normalized_gcd_monoid (ideal D),
-  have hgcd : gcd I J = I ⊔ J,
-  { rw [gcd_eq_normalize _ _, normalize_eq],
-    { rw [ideal.dvd_iff_le, sup_le_iff, ← ideal.dvd_iff_le, ← ideal.dvd_iff_le],
-      exact ⟨gcd_dvd_left _ _, gcd_dvd_right _ _⟩ },
-    { rw [dvd_gcd_iff, ideal.dvd_iff_le, ideal.dvd_iff_le],
-      simp } },
-  have hlcm : lcm I J = I ⊓ J,
-  { rw [lcm_eq_normalize _ _, normalize_eq],
-    { rw [lcm_dvd_iff, ideal.dvd_iff_le, ideal.dvd_iff_le],
-      simp, },
-    { rw [ideal.dvd_iff_le, le_inf_iff, ← ideal.dvd_iff_le, ← ideal.dvd_iff_le],
-      exact ⟨dvd_lcm_left _ _, dvd_lcm_right _ _⟩ } },
-  rw [← hgcd, ← hlcm, associated_iff_eq.mp (gcd_mul_lcm _ _)],
-  apply_instance
-end
-
-/-- Ideals in a Dedekind domain have gcd and lcm operators that (trivially) are compatible with
-the normalization operator. -/
-instance {D : Type*} [comm_ring D] [is_domain D] [is_dedekind_domain D] :
-  normalized_gcd_monoid (ideal D) :=
-{ gcd := (⊔),
-  gcd_dvd_left := λ _ _, by simpa only [ideal.dvd_iff_le] using le_sup_left,
-  gcd_dvd_right := λ _ _, by simpa only [ideal.dvd_iff_le] using le_sup_right,
-  dvd_gcd := λ _ _ _, by simpa only [ideal.dvd_iff_le] using sup_le,
-  lcm := (⊓),
-  lcm_zero_left := λ _, by simp only [ideal.zero_eq_bot, bot_inf_eq],
-  lcm_zero_right := λ _, by simp only [ideal.zero_eq_bot, inf_bot_eq],
-  gcd_mul_lcm := λ _ _, by rw [associated_iff_eq, sup_mul_inf],
-  normalize_gcd := λ _ _, normalize_eq _,
-  normalize_lcm := λ _ _, normalize_eq _,
-  .. ideal.normalization_monoid }
-
-end
-
-@[simp]
-lemma gcd_eq_sup {R : Type*} [comm_ring R] [is_domain R] [is_dedekind_domain R] (I J : ideal R) :
-  gcd I J = I ⊔ J :=
-rfl
-
-
-@[simp]
-lemma lcm_eq_inf {R : Type*} [comm_ring R] [is_domain R] [is_dedekind_domain R] (I J : ideal R) :
-  lcm I J = I ⊓ J :=
-rfl
-
-end ideal
-
-end dedekind_gcd_eq_sup
-
 section norm_zero
 namespace algebra
 lemma norm_zero_of_basis {R S ι : Type*} [comm_ring R] [comm_ring S] [algebra R S] [nontrivial S]
@@ -174,10 +112,11 @@ end int_squarefree
 section irred
 
 lemma irreducible_of_map_irreducible {α β : Type*} [monoid α] [monoid β] [unique βˣ] {p : α}
-  (f : α →* β) (hf : ∀ x, f x = 1 → x = 1) (h : irreducible $ f p) : irreducible p :=
+  {F : Type*} [monoid_hom_class F α β] (f : F) (hf : ∀ x, f x = 1 → x = 1)
+  (h : irreducible $ f p) : irreducible p :=
 { not_unit := λ hn, h.not_unit (hn.map f),
   is_unit_or_is_unit' := λ a b hab, begin
-    have := f.map_mul a b,
+    have := map_mul f a b,
     rw ← hab at this,
     apply or.imp _ _ (h.is_unit_or_is_unit this);
     rintro ⟨ua, ha⟩;
@@ -272,7 +211,7 @@ section class_group_span_singleton
 @[simp]
 lemma class_group.mk0_span_singleton {R K : Type*} [comm_ring R] [field K] [algebra R K]
   [is_fraction_ring R K] [is_domain R] [is_dedekind_domain R] (x : R) (h) :
-  class_group.mk0 K ⟨ideal.span ({x} : set R), h⟩ = 1 :=
+  class_group.mk0 ⟨ideal.span ({x} : set R), h⟩ = 1 :=
 begin
   rw class_group.mk0_eq_one_iff,
   exact ideal.span.submodule.is_principal,
