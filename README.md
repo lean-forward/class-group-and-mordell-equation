@@ -39,3 +39,4 @@ The sections of our paper correspond with the following files:
  * Section 5: `src/number_theory/mordell.lean`
  * Section 6.1: `src/number_theory/quad_ring/basic.lean`
  * Section 6.2: `src/tactic/times_table.lean`
+ * Section 7: `src/tactic/sageify/sageify.lean`
